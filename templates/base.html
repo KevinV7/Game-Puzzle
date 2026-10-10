@@ -1,0 +1,39 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Juego{% endblock %} · Puzle deslizante</title>
+  <link rel="stylesheet" href="{% static 'css/site.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Principal">
+      <a class="brand" href="{% url 'home' %}">Puzle deslizante</a>
+      <ul class="nav-links">
+        <li><a href="{% url 'home' %}">Inicio</a></li>
+        <li><a href="{% url 'instructions' %}">Instrucciones</a></li>
+        <li><a href="{% url 'play' %}">Jugar</a></li>
+        <li><a href="{% url 'leaderboard' %}">Clasificación</a></li>
+      </ul>
+      <ul class="nav-auth">
+        {% if user.is_authenticated %}
+        <li class="nav-user">{{ user.username }}</li>
+        <li>
+          <form method="post" action="{% url 'logout' %}" class="nav-logout">
+            {% csrf_token %}
+            <button type="submit">Salir</button>
+          </form>
+        </li>
+        {% else %}
+        <li><a href="{% url 'login' %}">Entrar</a></li>
+        <li><a href="{% url 'signup' %}">Registrarse</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </header>
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
