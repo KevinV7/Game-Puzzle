@@ -1,2 +1,24 @@
 openspec/
 .atl/.skill-registry.cache.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+staticfiles/
+db.sqlite3
+*.log
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
