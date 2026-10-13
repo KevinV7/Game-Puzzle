@@ -2,6 +2,31 @@ from django.test import TestCase
 from django.urls import reverse
 
 
+class InstructionsPageTests(TestCase):
+    def setUp(self):
+        self.response = self.client.get(reverse("instructions"))
+
+    def test_instructions_are_public_and_not_the_construction_stub(self):
+        self.assertEqual(self.response.status_code, 200)
+        self.assertNotContains(self.response, "Página en construcción")
+
+    def test_instructions_have_sections_for_rules_and_each_control(self):
+        for heading in ["Reglas", "Teclado", "Ratón", "Pantalla táctil"]:
+            with self.subTest(heading):
+                self.assertContains(self.response, f"<h2>{heading}</h2>", html=True)
+
+    def test_instructions_describe_the_rules_and_the_controls(self):
+        for text in ["espacio vacío", "flechas", "clic", "Toca una ficha", "desliza el dedo"]:
+            with self.subTest(text):
+                self.assertContains(self.response, text)
+
+    def test_instructions_include_a_3x3_illustration_with_alt_text(self):
+        content = self.response.content.decode()
+        self.assertRegex(content, r'role="img"\s+aria-label="[^"]+"')
+        self.assertEqual(content.count('class="example-tile'), 9)
+        self.assertEqual(content.count('class="example-tile example-tile-empty"'), 1)
+
+
 class HomePageTests(TestCase):
     def test_home_is_public_and_shows_the_game_name(self):
         response = self.client.get(reverse("home"))

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Instrucciones{% endblock %}
+
+{% block content %}
+<h1>Instrucciones</h1>
+
+<section class="instructions-section">
+  <h2>Reglas</h2>
+  <p>
+    El tablero es una cuadrícula con fichas numeradas y un espacio vacío.
+    Desliza las fichas contiguas al espacio vacío, de una en una, hasta que
+    queden ordenadas de menor a mayor.
+  </p>
+  <div class="example">
+    <div class="example-grid" role="img"
+         aria-label="Ejemplo de tablero de 3 por 3: fichas del 1 al 8 en orden y el espacio vacío en la esquina inferior derecha.">
+      <span class="example-tile">1</span>
+      <span class="example-tile">2</span>
+      <span class="example-tile">3</span>
+      <span class="example-tile">4</span>
+      <span class="example-tile">5</span>
+      <span class="example-tile">6</span>
+      <span class="example-tile">7</span>
+      <span class="example-tile">8</span>
+      <span class="example-tile example-tile-empty"></span>
+    </div>
+    <p class="example-caption">Tablero resuelto: las fichas del 1 al 8 en orden y el espacio vacío al final.</p>
+  </div>
+</section>
+
+<section class="instructions-section">
+  <h2>Teclado</h2>
+  <p>Usa las teclas de flechas para mover una ficha hacia el espacio vacío.</p>
+</section>
+
+<section class="instructions-section">
+  <h2>Ratón</h2>
+  <p>Haz clic en una ficha contigua al espacio vacío para deslizarla.</p>
+</section>
+
+<section class="instructions-section">
+  <h2>Pantalla táctil</h2>
+  <p>Toca una ficha contigua al espacio vacío o desliza el dedo sobre ella hacia el hueco.</p>
+</section>
+
+<p class="actions"><a class="button" href="{% url 'play' %}">Jugar</a></p>
+{% endblock %}

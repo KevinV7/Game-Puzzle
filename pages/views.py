@@ -16,5 +16,4 @@ home = login_not_required(TemplateView.as_view(template_name="pages/home.html"))
 play = placeholder("Jugar")
 leaderboard = placeholder("Clasificación")
 
-# Public stand-in so the navigation resolves until the instructions page lands.
-instructions = login_not_required(placeholder("Instrucciones", "Página en construcción."))
+instructions = login_not_required(TemplateView.as_view(template_name="pages/instructions.html"))
