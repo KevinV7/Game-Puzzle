@@ -9,11 +9,12 @@ def placeholder(title, message="Aún no disponible."):
     )
 
 
+# Public entry pages: opt out of LoginRequiredMiddleware explicitly.
+home = login_not_required(TemplateView.as_view(template_name="pages/home.html"))
+
 # Protected by LoginRequiredMiddleware: no opt-out here on purpose.
 play = placeholder("Jugar")
 leaderboard = placeholder("Clasificación")
 
-# Public stand-ins so the navigation and the post-login redirect resolve.
-# The home and instructions pages replace these views in the pages slice.
-home = login_not_required(placeholder("Inicio", "Página en construcción."))
+# Public stand-in so the navigation resolves until the instructions page lands.
 instructions = login_not_required(placeholder("Instrucciones", "Página en construcción."))
