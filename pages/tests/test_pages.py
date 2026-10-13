@@ -1,5 +1,20 @@
-from django.test import TestCase
+from django.conf import settings
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+
+
+class ResponsiveStylesheetTests(SimpleTestCase):
+    def setUp(self):
+        self.css = (settings.BASE_DIR / "static" / "css" / "site.css").read_text()
+
+    def test_stylesheet_applies_the_responsive_safeguards(self):
+        for rule in ["box-sizing: border-box", "max-width: 100%", "overflow-wrap: anywhere", "flex-wrap: wrap"]:
+            with self.subTest(rule):
+                self.assertIn(rule, self.css)
+
+    def test_stylesheet_never_hides_horizontal_overflow(self):
+        self.assertNotIn("overflow-x", self.css)
+        self.assertNotRegex(self.css, r"overflow:\s*hidden")
 
 
 class InstructionsPageTests(TestCase):
