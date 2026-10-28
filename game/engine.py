@@ -8,10 +8,14 @@ appear once each and ``0`` is the gap. The goal layout is the tiles in ascending
 order with the gap in the last cell.
 """
 
+import random
 from math import isqrt
+from types import MappingProxyType
 
 SUPPORTED_SIZES = (3, 4, 5)
 GAP = 0
+# Length of the shuffle random walk per board size.
+DEFAULT_STEPS = MappingProxyType({3: 150, 4: 300, 5: 500})
 
 Board = tuple[int, ...]
 
@@ -77,6 +81,66 @@ def tile_in_place(board: Board, tile: int) -> bool:
     if not 1 <= tile < len(board) or tile not in board:
         raise InvalidMove(f"tile {tile!r} is not on the board")
     return board.index(tile) == tile - 1
+
+
+def is_solvable(board: Board) -> bool:
+    """Return True if ``board`` can reach the goal layout by legal moves.
+
+    Decided by inversion parity, independently of how the board was produced. The
+    goal has the gap in the last cell, so for an odd width the number of inversions
+    must be even; for an even width the inversions plus the gap's row counted from
+    the bottom (1-based) must be odd.
+    """
+    size = isqrt(len(board))
+    validate_board(board, size)
+    tiles = [tile for tile in board if tile != GAP]
+    inversions = sum(
+        1
+        for i, tile in enumerate(tiles)
+        for later in tiles[i + 1 :]
+        if tile > later
+    )
+    if size % 2 == 1:
+        return inversions % 2 == 0
+    gap_row_from_bottom = size - board.index(GAP) // size
+    return (inversions + gap_row_from_bottom) % 2 == 1
+
+
+def shuffle(size: int, rng: random.Random, steps: int | None = None) -> Board:
+    """Return a solvable, unsolved board reached by a random walk from the goal.
+
+    Every step slides one tile into the gap, so the result is solvable by
+    construction. A step never undoes the previous one. It draws one
+    ``rng.choice`` per step, from a sorted list of candidate tiles, so the same
+    seed always yields the same board. A walk that ends on the goal is redrawn.
+    ``steps`` defaults to ``DEFAULT_STEPS[size]``.
+    """
+    if size not in SUPPORTED_SIZES:
+        raise InvalidBoard(f"unsupported size: {size!r}")
+    if steps is None:
+        steps = DEFAULT_STEPS[size]
+    if steps < 1:
+        raise ValueError("steps must be at least 1")
+    while True:
+        board = _random_walk(size, rng, steps)
+        if not is_solved(board):
+            return board
+
+
+def _random_walk(size: int, rng: random.Random, steps: int) -> Board:
+    cells = list(solved_board(size))
+    gap = cells.index(GAP)
+    previous_tile = None
+    for _ in range(steps):
+        candidates = sorted(
+            cells[i] for i in _adjacent_cells(gap, size) if cells[i] != previous_tile
+        )
+        tile = rng.choice(candidates)
+        target = cells.index(tile)
+        cells[gap], cells[target] = tile, GAP
+        gap = target
+        previous_tile = tile
+    return tuple(cells)
 
 
 def _adjacent_cells(index: int, size: int) -> list[int]:
