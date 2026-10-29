@@ -49,6 +49,12 @@ u.set_password('$smoke_pass')
 u.save()
 " >/dev/null
 
+# Start from a clean slate: no games, so the user is on Easy and can start it.
+docker compose exec -T web python manage.py shell -c "
+from game.models import Game
+Game.objects.filter(user__username='smoke_user').delete()
+" >/dev/null
+
 curl -s -c "$JAR" -o /dev/null "$BASE_URL/cuentas/entrar/"
 token="$(awk '$6 == "csrftoken" {print $7}' "$JAR")"
 code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
@@ -59,6 +65,35 @@ code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
   "$BASE_URL/cuentas/entrar/")"
 check "login POST with CSRF through proxy" 302 "$code"
 check "authenticated /jugar/ is reachable" 200 "$(status -b "$JAR" "$BASE_URL/jugar/")"
+
+# 4. Game: level selection, start (POST + CSRF), board shell, JSON state and move.
+check "anonymous game API redirects" 302 "$(status "$BASE_URL/jugar/api/partidas/1/")"
+token="$(awk '$6 == "csrftoken" {print $7}' "$JAR")"
+code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
+  -H "Origin: $BASE_URL" -H "Referer: $BASE_URL/jugar/" \
+  -H "X-CSRFToken: $token" -X POST "$BASE_URL/jugar/facil/empezar/")"
+check "start Easy by POST with CSRF redirects" 303 "$code"
+check "start by GET is rejected" 405 "$(status -b "$JAR" "$BASE_URL/jugar/facil/empezar/")"
+
+page="$(curl -s -b "$JAR" "$BASE_URL/jugar/facil/")"
+game_id=""
+if [[ "$page" =~ \"id\":\ *([0-9]+) ]]; then game_id="${BASH_REMATCH[1]}"; fi
+check "board page embeds a game id" "yes" "$([ -n "$game_id" ] && echo yes || echo no)"
+
+state="$(curl -s -b "$JAR" -o /dev/null -w '%{http_code} %{content_type}' "$BASE_URL/jugar/api/partidas/$game_id/")"
+check "state GET returns JSON" "200 application/json" "${state%%;*}"
+
+token="$(awk '$6 == "csrftoken" {print $7}' "$JAR")"
+move_url="$BASE_URL/jugar/api/partidas/$game_id/mover/"
+move="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code} %{content_type}' \
+  -H "Origin: $BASE_URL" -H "Referer: $BASE_URL/jugar/facil/" \
+  -H "X-CSRFToken: $token" -H "Content-Type: application/json" \
+  --data '{"tile": 1, "seq": 1}' "$move_url")"
+check "move POST with X-CSRFToken returns JSON" "200 application/json" "${move%%;*}"
+code="$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' \
+  -H "Origin: $BASE_URL" -H "Content-Type: application/json" \
+  --data '{"tile": 1, "seq": 2}' "$move_url")"
+check "move POST without CSRF token is rejected" 403 "$code"
 
 if [ "$FAILURES" -gt 0 ]; then
   echo "$FAILURES check(s) failed"
