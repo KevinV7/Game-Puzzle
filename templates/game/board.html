@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ level.name }}{% endblock %}
 
@@ -9,7 +10,13 @@
   <p class="counter">Tiempo: <span id="time">{{ clock }}</span></p>
 </div>
 <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
-<ol id="board" class="board" style="--size: {{ level.size }}" aria-label="Tablero {{ level.size }}x{{ level.size }}">
+{# The script swaps the id 0 of the state and move URLs and the __slug__ of the start URL. #}
+<ol id="board" class="board" style="--size: {{ level.size }}" aria-label="Tablero {{ level.size }}x{{ level.size }}"
+    data-state-url="{% url 'game-state' 0 %}"
+    data-move-url="{% url 'game-move' 0 %}"
+    data-start-url="{% url 'game-start' '__slug__' %}"
+    data-levels-url="{% url 'play' %}"
+    data-login-url="{% url 'login' %}">
   {% for cell in cells %}{% if cell %}<li class="tile">{{ cell }}</li>{% else %}<li class="tile tile-gap"></li>{% endif %}{% endfor %}
 </ol>
 <section id="win-panel" class="win-panel" hidden>
@@ -17,8 +24,12 @@
   <p id="win-text"></p>
   <div id="win-actions"></div>
 </section>
+<template id="next-level-form">
+  <form method="post" class="win-form">{% csrf_token %}<button type="submit">Siguiente nivel</button></form>
+</template>
 {% if can_switch %}
 <p class="board-links"><a href="{% url 'play' %}">Elegir otro nivel</a></p>
 {% endif %}
 {{ state|json_script:"game-state" }}
+<script type="module" src="{% static 'js/game.js' %}"></script>
 {% endblock %}
