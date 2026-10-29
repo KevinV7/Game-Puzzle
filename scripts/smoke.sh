@@ -38,6 +38,12 @@ check "static CSS content type" "text/css" "${ctype%%;*}"
 # 3. Site pages, access guard and a CSRF login POST through the proxy.
 check "GET /" 200 "$(status "$BASE_URL/")"
 check "static site.css served by nginx" 200 "$(status "$BASE_URL/static/css/site.css")"
+check "static game.js served by nginx" 200 "$(status "$BASE_URL/static/js/game.js")"
+jstype="$(curl -s -o /dev/null -w '%{content_type}' "$BASE_URL/static/js/game.js")"
+case "${jstype%%;*}" in
+  text/javascript | application/javascript) jstype="javascript" ;;
+esac
+check "static game.js content type" "javascript" "$jstype"
 check "anonymous /jugar/ redirects" 302 "$(status "$BASE_URL/jugar/")"
 
 smoke_pass="smoke-$(date +%s)-Aa1!"
@@ -79,6 +85,7 @@ page="$(curl -s -b "$JAR" "$BASE_URL/jugar/facil/")"
 game_id=""
 if [[ "$page" =~ \"id\":\ *([0-9]+) ]]; then game_id="${BASH_REMATCH[1]}"; fi
 check "board page embeds a game id" "yes" "$([ -n "$game_id" ] && echo yes || echo no)"
+check "board page loads game.js as a module" "yes" "$([[ "$page" == *'type="module" src="/static/js/game.js"'* ]] && echo yes || echo no)"
 
 state="$(curl -s -b "$JAR" -o /dev/null -w '%{http_code} %{content_type}' "$BASE_URL/jugar/api/partidas/$game_id/")"
 check "state GET returns JSON" "200 application/json" "${state%%;*}"
