@@ -153,6 +153,11 @@ export function start(doc, win) {
   const movesEl = doc.getElementById("moves");
   const timeEl = doc.getElementById("time");
   const noticeEl = doc.getElementById("notice");
+  const winPanel = doc.getElementById("win-panel");
+  const winTitle = doc.getElementById("win-title");
+  const winText = doc.getElementById("win-text");
+  const winActions = doc.getElementById("win-actions");
+  const nextFormTemplate = doc.getElementById("next-level-form");
 
   let game = null; // the attempt on screen, in the server's shape
   let shownGameId = null;
@@ -162,6 +167,8 @@ export function start(doc, win) {
   let queued = null; // at most one input waits for the request in flight
   let notice = null; // null, "offline" or "loss"
   let lastExpiryCheck = -Infinity;
+  let swipeStart = null; // where a touch or pen pointer went down
+  let swipeUsed = false; // the gesture in progress already ended as a swipe
 
   // Notice
 
@@ -331,9 +338,97 @@ export function start(doc, win) {
 
   function apply(data, receivedAt) {
     if (notice === "offline") clearNotice();
+    const message = data.ended ? lossMessage(data.ended.loss_reason) : null;
+    if (message) {
+      showLoss(message, data, receivedAt);
+      return;
+    }
+    if (data.game.status === "lost") {
+      // This page holds an attempt that another tab already ended: load the current one.
+      win.location.reload();
+      return;
+    }
     adopt(data.game, receivedAt);
     if (data.move) emitMoveCues(data.move);
+    if (data.game.status === "won") showWin(data);
   }
+
+  // Outcomes. The server decided; these only show its verdict.
+
+  // The notice covers a timeout or move-limit loss. `data.game` is already the
+  // replacement, whose clock runs on the server, so it is drawn after the notice with
+  // the seconds counted from the response. An abandoned attempt has no message.
+  function showLoss(message, data, receivedAt) {
+    queued = null;
+    setNotice("loss", message);
+    emitCue("lose");
+    win.setTimeout(() => {
+      clearNotice();
+      adopt(data.game, receivedAt);
+    }, NOTICE_MS);
+  }
+
+  function winAction(view) {
+    if (view.action === "next" && nextFormTemplate) {
+      const form = nextFormTemplate.content.firstElementChild.cloneNode(true);
+      form.setAttribute("action", startUrl(urls.start, view.nextLevel));
+      return form;
+    }
+    const link = doc.createElement("a");
+    link.className = "button";
+    link.href = urls.levels;
+    link.textContent = "Elegir nivel";
+    return link;
+  }
+
+  function showWin(data) {
+    queued = null;
+    const view = describeWin(data);
+    winTitle.textContent = view.title;
+    winText.textContent = view.text;
+    winActions.replaceChildren(winAction(view));
+    winPanel.hidden = false;
+    winTitle.tabIndex = -1;
+    winTitle.focus();
+    emitCue("win");
+  }
+
+  // Inputs: click or tap, arrow keys and swipes all end in submit().
+
+  boardEl.addEventListener("click", (event) => {
+    if (swipeUsed) {
+      swipeUsed = false; // the same gesture already moved a tile as a swipe
+      return;
+    }
+    const button = event.target.closest("button[data-tile]");
+    if (button) submit({ tile: Number(button.dataset.tile) }); // the gap has no button
+  });
+
+  boardEl.addEventListener("pointerdown", (event) => {
+    swipeUsed = false;
+    swipeStart = event.pointerType === "mouse" ? null : { id: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+
+  boardEl.addEventListener("pointerup", (event) => {
+    if (!swipeStart || swipeStart.id !== event.pointerId) return;
+    const direction = swipeDirection(event.clientX - swipeStart.x, event.clientY - swipeStart.y);
+    swipeStart = null;
+    if (!direction) return; // a tap: the click handler deals with it
+    swipeUsed = true;
+    submit({ direction });
+  });
+
+  boardEl.addEventListener("pointercancel", () => {
+    swipeStart = null;
+  });
+
+  doc.addEventListener("keydown", (event) => {
+    const direction = directionForKey(event.key);
+    if (!direction || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!game || game.status !== "active") return; // finished: let the page scroll
+    event.preventDefault();
+    submit({ direction }); // ignored by submit() while the loss notice shows
+  });
 
   // An input is a tile number (click) or a slide direction (key, swipe). A direction
   // is turned into a tile number only when it is sent, from the board then held.
