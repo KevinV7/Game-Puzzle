@@ -129,3 +129,235 @@ export function emitCue(name) {
     }
   }
 }
+
+// Page wiring
+
+const TICK_MS = 250;
+const RETRY_MS = 2000; // wait before asking the server again after a failed request
+const EXPIRY_RECHECK_MS = 1000; // spacing of state requests while the countdown sits at 0
+const OFFLINE_MESSAGE = "No se pudo conectar con el servidor. Reintentando…";
+
+/** Wire the board page: `doc` and `win` are the document and window (injectable). */
+export function start(doc, win) {
+  const boardEl = doc.getElementById("board");
+  const stateNode = doc.getElementById("game-state");
+  if (!boardEl || !stateNode) return;
+
+  const urls = {
+    state: boardEl.dataset.stateUrl,
+    move: boardEl.dataset.moveUrl,
+    start: boardEl.dataset.startUrl,
+    levels: boardEl.dataset.levelsUrl,
+    login: boardEl.dataset.loginUrl,
+  };
+  const movesEl = doc.getElementById("moves");
+  const timeEl = doc.getElementById("time");
+  const noticeEl = doc.getElementById("notice");
+
+  let game = null; // the attempt on screen, in the server's shape
+  let shownGameId = null;
+  let renderedSignature = "";
+  let localDeadline = 0; // performance.now() value at which the countdown reaches 0
+  let inFlight = false; // one request at a time
+  let queued = null; // at most one input waits for the request in flight
+  let notice = null; // null, "offline" or "loss"
+  let lastExpiryCheck = -Infinity;
+
+  // Notice
+
+  function setNotice(kind, text) {
+    notice = kind;
+    noticeEl.textContent = text;
+    noticeEl.hidden = false;
+  }
+
+  function clearNotice() {
+    notice = null;
+    noticeEl.textContent = "";
+    noticeEl.hidden = true;
+  }
+
+  // Rendering: always the server's board
+
+  function tileCell(number) {
+    const cell = doc.createElement("li");
+    cell.className = "tile";
+    const button = doc.createElement("button");
+    button.type = "button";
+    button.className = "tile-button";
+    button.dataset.tile = String(number);
+    button.setAttribute("aria-label", `Ficha ${number}`);
+    button.textContent = String(number);
+    cell.append(button);
+    return cell;
+  }
+
+  function gapCell() {
+    const cell = doc.createElement("li");
+    cell.className = "tile tile-gap";
+    return cell;
+  }
+
+  function renderBoard(g) {
+    const signature = `${g.size}:${g.board.join(",")}`;
+    if (signature === renderedSignature) return;
+    renderedSignature = signature;
+    const focused = boardEl.contains(doc.activeElement) ? doc.activeElement.dataset.tile : undefined;
+    boardEl.style.setProperty("--size", String(g.size));
+    boardEl.setAttribute("aria-label", `Tablero ${g.size}x${g.size}`);
+    boardEl.replaceChildren(...g.board.map((cell) => (cell === 0 ? gapCell() : tileCell(cell))));
+    if (focused) boardEl.querySelector(`[data-tile="${focused}"]`)?.focus();
+  }
+
+  // Show an attempt. `receivedAt` is when the server said how many seconds were left,
+  // so a delayed render (after the loss notice) still shows the server's clock.
+  function adopt(g, receivedAt) {
+    game = g;
+    renderBoard(g);
+    movesEl.textContent = `${g.moves_used} / ${g.move_limit}`;
+    localDeadline = receivedAt + g.seconds_remaining * 1000;
+    const seconds = g.status === "active" ? secondsLeft(localDeadline, performance.now()) : g.seconds_remaining;
+    timeEl.textContent = formatClock(seconds);
+    if (g.status === "active" && g.id !== shownGameId) emitCue("active");
+    shownGameId = g.id;
+  }
+
+  // Countdown: display only. At 0 the server is asked and its verdict is shown.
+
+  function tick() {
+    if (!game || game.status !== "active" || notice === "loss") return;
+    const left = secondsLeft(localDeadline, performance.now());
+    timeEl.textContent = formatClock(left);
+    if (left === 0) checkExpiry();
+  }
+
+  function checkExpiry() {
+    const now = performance.now();
+    if (inFlight || now - lastExpiryCheck < EXPIRY_RECHECK_MS) return;
+    lastExpiryCheck = now;
+    sync();
+  }
+
+  win.setInterval(tick, TICK_MS);
+  doc.addEventListener("visibilitychange", () => {
+    if (!doc.hidden && canPlay()) sync();
+    tick();
+  });
+
+  // Request pipeline: one request in flight, at most one input queued behind it.
+
+  function canPlay() {
+    return game !== null && game.status === "active" && notice !== "loss";
+  }
+
+  function goToLogin() {
+    win.location.assign(`${urls.login}?next=${encodeURIComponent(win.location.pathname)}`);
+  }
+
+  async function call(url, init) {
+    let response;
+    try {
+      response = await fetch(url, {
+        credentials: "same-origin",
+        ...init,
+        headers: { Accept: "application/json", "X-CSRFToken": readCookie(doc.cookie, "csrftoken"), ...init.headers },
+      });
+    } catch {
+      return { kind: "offline" };
+    }
+    const isJson = (response.headers.get("Content-Type") ?? "").includes("application/json");
+    // The anonymous API answers with a redirect to the login page (or an HTML error).
+    if (response.redirected || (!isJson && response.status < 500)) return { kind: "login" };
+    if (!isJson) return { kind: "offline" };
+    try {
+      return { kind: "reply", status: response.status, data: await response.json() };
+    } catch {
+      return { kind: "offline" };
+    }
+  }
+
+  async function sync() {
+    if (inFlight) return;
+    inFlight = true;
+    settle(await call(gameUrl(urls.state, game.id), { method: "GET" }), true);
+  }
+
+  async function send(tile) {
+    inFlight = true;
+    const body = JSON.stringify({ tile, seq: game.moves_used + 1 });
+    settle(await call(gameUrl(urls.move, game.id), { method: "POST", headers: { "Content-Type": "application/json" }, body }), false);
+  }
+
+  // Handle a finished request. 200 and 409 both carry the server's state, which wins.
+  function settle(result, wasSync) {
+    if (result.kind === "login") {
+      goToLogin();
+      return;
+    }
+    if (result.kind === "offline" || (wasSync && !result.data?.game && result.status !== 404)) {
+      retryLater();
+      return;
+    }
+    if (result.status === 404) {
+      win.location.assign(urls.levels);
+      return;
+    }
+    inFlight = false;
+    if (!result.data?.game) {
+      sync(); // a rejected request says nothing about the board: ask for it
+      return;
+    }
+    apply(result.data, performance.now());
+    drain();
+  }
+
+  // The request stays "in flight" while waiting, so input queues instead of piling up.
+  function retryLater() {
+    if (notice !== "loss") setNotice("offline", OFFLINE_MESSAGE);
+    win.setTimeout(() => {
+      inFlight = false;
+      sync();
+    }, RETRY_MS);
+  }
+
+  function emitMoveCues(move) {
+    if (!move.valid) {
+      emitCue("invalid");
+      return;
+    }
+    emitCue("slide");
+    emitCue(move.tile_in_place ? "correct" : "incorrect");
+  }
+
+  function apply(data, receivedAt) {
+    if (notice === "offline") clearNotice();
+    adopt(data.game, receivedAt);
+    if (data.move) emitMoveCues(data.move);
+  }
+
+  // An input is a tile number (click) or a slide direction (key, swipe). A direction
+  // is turned into a tile number only when it is sent, from the board then held.
+  function submit(intent) {
+    if (!canPlay()) return;
+    if (inFlight) {
+      queued ??= intent;
+      return;
+    }
+    dispatch(intent);
+  }
+
+  function dispatch(intent) {
+    const tile = intent.tile ?? tileForDirection(game.board, game.size, intent.direction);
+    if (tile !== null && tile !== undefined) send(tile); // a wall sends nothing
+  }
+
+  function drain() {
+    const next = queued;
+    queued = null;
+    if (next && canPlay() && !inFlight) dispatch(next);
+  }
+
+  adopt(JSON.parse(stateNode.textContent).game, performance.now());
+}
+
+if (typeof document !== "undefined") start(document, window);
