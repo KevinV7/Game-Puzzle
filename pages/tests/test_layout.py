@@ -17,6 +17,13 @@ class BaseLayoutTests(TestCase):
         response = self.client.get(reverse("login"))
         self.assertContains(response, "/static/css/site.css")
 
+    def test_pages_declare_an_inline_icon_so_browsers_do_not_request_favicon_ico(self):
+        for name in ["login", "signup"]:
+            with self.subTest(name):
+                response = self.client.get(reverse(name))
+                self.assertContains(response, '<link rel="icon" href="data:image/svg+xml,')
+                self.assertNotContains(response, "/favicon.ico")
+
     def test_anonymous_navigation_shows_login_and_signup_but_no_logout(self):
         response = self.client.get(reverse("login"))
         for name in ["home", "instructions", "play", "leaderboard", "login", "signup"]:
