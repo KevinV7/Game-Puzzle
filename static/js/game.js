@@ -61,6 +61,16 @@ export function formatClock(seconds) {
   return `${minutes}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/**
+ * The local clock reading (ms) at which the countdown reaches 0, given that the server
+ * reported `secondsRemaining` at `receivedAt`. The server floors that number, so the real
+ * time left is somewhere in [s, s + 1) seconds: counting s + 1 keeps the local deadline
+ * from ever falling before the server's, so a state request made at 0 finds it expired.
+ */
+export function deadlineFor(receivedAt, secondsRemaining) {
+  return receivedAt + (secondsRemaining + 1) * 1000;
+}
+
 /** Whole seconds left until `deadline` (both in ms on the same clock), never below 0. */
 export function secondsLeft(deadline, now) {
   return Math.max(0, Math.ceil((deadline - now) / 1000));
@@ -222,20 +232,25 @@ export function start(doc, win) {
     game = g;
     renderBoard(g);
     movesEl.textContent = `${g.moves_used} / ${g.move_limit}`;
-    localDeadline = receivedAt + g.seconds_remaining * 1000;
-    const seconds = g.status === "active" ? secondsLeft(localDeadline, performance.now()) : g.seconds_remaining;
-    timeEl.textContent = formatClock(seconds);
+    localDeadline = deadlineFor(receivedAt, g.seconds_remaining);
+    timeEl.textContent = formatClock(g.status === "active" ? shownSeconds(performance.now()) : g.seconds_remaining);
     if (g.status === "active" && g.id !== shownGameId) emitCue("active");
     shownGameId = g.id;
   }
 
   // Countdown: display only. At 0 the server is asked and its verdict is shown.
 
+  // The local deadline counts one second more than the server reported, so the clock
+  // would read one too many right after a response: it never shows more than the server did.
+  function shownSeconds(now) {
+    return Math.min(game.seconds_remaining, secondsLeft(localDeadline, now));
+  }
+
   function tick() {
     if (!game || game.status !== "active" || notice === "loss") return;
-    const left = secondsLeft(localDeadline, performance.now());
-    timeEl.textContent = formatClock(left);
-    if (left === 0) checkExpiry();
+    const now = performance.now();
+    timeEl.textContent = formatClock(shownSeconds(now));
+    if (secondsLeft(localDeadline, now) === 0) checkExpiry();
   }
 
   function checkExpiry() {
