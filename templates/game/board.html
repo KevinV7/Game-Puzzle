@@ -8,6 +8,8 @@
 <div class="board-info">
   <p class="counter">Movimientos: <span id="moves">{{ game.moves_used }} / {{ level.move_limit }}</span></p>
   <p class="counter">Tiempo: <span id="time">{{ clock }}</span></p>
+  {# Shown by sound.js when the browser can play sound; aria-pressed is true while muted. #}
+  <button type="button" id="mute-toggle" class="mute-toggle" aria-pressed="false" hidden>Silenciar</button>
 </div>
 <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
 {# The script swaps the id 0 of the state and move URLs and the __slug__ of the start URL. #}
@@ -32,4 +34,5 @@
 {% endif %}
 {{ state|json_script:"game-state" }}
 <script type="module" src="{% static 'js/game.js' %}"></script>
+<script type="module" src="{% static 'js/sound.js' %}"></script>
 {% endblock %}
