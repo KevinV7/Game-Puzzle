@@ -92,6 +92,26 @@ class LevelSelectionTests(ViewTestCase):
         self.assertContains(response, f'<a class="button" href="{reverse("game-board", args=["facil"])}">Continuar</a>', html=True)
         self.assertContains(response, "Fácil")
 
+    def test_the_card_with_the_active_attempt_has_no_start_form_and_other_cards_keep_theirs(self):
+        user = make_user_who_won(["facil"], "beto")
+        live_game(user, "normal")
+        self.client.force_login(user)
+        response = self.client.get(reverse("play"))
+        self.assertNotContains(response, start_form("normal"))
+        self.assertNotIn("Empezar", card(response, "Normal"))
+        self.assertIn("En curso", card(response, "Normal"))
+        self.assertContains(response, f'href="{reverse("game-board", args=["normal"])}">Continuar</a>')
+        self.assertEqual(response.content.decode().count("Continuar"), 1)
+
+    def test_a_completed_user_with_an_active_attempt_still_starts_the_other_levels(self):
+        user = make_completed_user("beto")
+        live_game(user, "facil")
+        self.client.force_login(user)
+        response = self.client.get(reverse("play"))
+        self.assertNotContains(response, start_form("facil"))
+        for slug in ["normal", "dificil"]:
+            self.assertContains(response, start_form(slug))
+
     def test_expired_attempt_is_recorded_once_and_no_clock_starts(self):
         game = live_game(self.ana, started_at=timezone.now() - timedelta(hours=1))
         for _ in range(2):
