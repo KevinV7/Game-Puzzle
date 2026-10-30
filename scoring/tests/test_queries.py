@@ -1,12 +1,14 @@
 """Score rule and player statistics queries."""
 
+from datetime import timedelta
 from io import StringIO
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from game.models import Game, Level
 from game.score import won_with_points
+from scoring.queries import average_seconds, format_clock, win_percent
 
 from .helpers import make_game, make_lost, make_user, make_win
 
@@ -64,3 +66,47 @@ class PointsTests(TestCase):
     def test_the_migration_set_is_complete(self):
         # makemigrations --check exits non-zero (SystemExit) when a model change lacks a migration.
         call_command("makemigrations", check=True, dry_run=True, stdout=StringIO())
+
+
+class FormatHelperTests(SimpleTestCase):
+    def test_win_percent_rounds_half_up(self):
+        cases = [(1, 3, 33), (3, 7, 43), (1, 8, 13), (1, 2, 50), (0, 5, 0), (5, 5, 100)]
+        for won, played, expected in cases:
+            with self.subTest(won=won, played=played):
+                self.assertEqual(win_percent(won, played), expected)
+
+    def test_win_percent_is_an_integer(self):
+        self.assertIsInstance(win_percent(1, 8), int)
+
+    def test_win_percent_is_none_when_nothing_was_played(self):
+        self.assertIsNone(win_percent(0, 0))
+
+    def test_average_seconds_rounds_to_the_nearest_second_with_halves_up(self):
+        cases = [
+            (timedelta(seconds=201), 2, 101),  # 100.5 s: round() would give 100
+            (timedelta(seconds=5), 2, 3),  # 2.5 s: round() would give 2
+            (timedelta(seconds=1), 2, 1),  # 0.5 s: round() would give 0
+            (timedelta(seconds=200, microseconds=999_800), 2, 100),  # 100.4999 s
+            (timedelta(seconds=100), 1, 100),
+            (timedelta(seconds=300), 3, 100),
+            (timedelta(seconds=100) + timedelta(seconds=101), 2, 101),
+        ]
+        for total, played, expected in cases:
+            with self.subTest(total=total, played=played):
+                self.assertEqual(average_seconds(total, played), expected)
+
+    def test_average_seconds_is_an_integer(self):
+        self.assertIsInstance(average_seconds(timedelta(seconds=201), 2), int)
+
+    def test_average_seconds_is_none_when_nothing_was_played(self):
+        self.assertIsNone(average_seconds(timedelta(0), 0))
+        self.assertIsNone(average_seconds(None, 0))
+
+    def test_format_clock_is_zero_padded_minutes_and_seconds(self):
+        cases = [(0, "00:00"), (9, "00:09"), (61, "01:01"), (100, "01:40"), (720, "12:00"), (3600, "60:00")]
+        for seconds, expected in cases:
+            with self.subTest(seconds=seconds):
+                self.assertEqual(format_clock(seconds), expected)
+
+    def test_format_clock_never_wraps_minutes_into_hours(self):
+        self.assertEqual(format_clock(3 * 3600 + 5), "180:05")
