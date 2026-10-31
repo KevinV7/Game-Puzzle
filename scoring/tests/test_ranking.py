@@ -2,10 +2,10 @@
 
 from django.test import TestCase
 
-from game.models import Level
+from game.models import Game, Level
 from scoring.queries import top_ten
 
-from .helpers import make_user, make_win
+from .helpers import T0, make_game, make_lost, make_user, make_win
 
 
 class DistinctOnWindowSpikeTests(TestCase):
@@ -64,3 +64,103 @@ class DistinctOnWindowSpikeTests(TestCase):
 
     def level(self, slug):
         return Level.objects.get(slug=slug).pk
+
+
+def hour(h):
+    """The instant at ``h``:00 on the day of T0."""
+    return T0.replace(hour=h)
+
+
+class OrderingAndVisibilityTests(TestCase):
+    """Score order, tie-breaks, one row per user and what never appears."""
+
+    def easy(self):
+        return [r for r in top_ten() if r["level_id"] == Level.objects.get(slug="facil").pk]
+
+    def names(self, slug="facil"):
+        level_id = Level.objects.get(slug=slug).pk
+        return [r["user__username"] for r in top_ten() if r["level_id"] == level_id]
+
+    def win(self, name, points, ended_at, slug="facil"):
+        """Win scoring ``points`` on Easy (x1): seconds plus moves."""
+        user = self.users.get(name) or self.users.setdefault(name, make_user(name))
+        return make_win(user, slug, seconds_remaining=points, moves_remaining=0, ended_at=ended_at)
+
+    def setUp(self):
+        self.users = {}
+
+    def test_rows_follow_the_score_descending(self):
+        self.win("ana", 300, hour(9))
+        self.win("beto", 340, hour(9))
+        self.win("carla", 250, hour(9))
+        self.assertEqual(self.names(), ["beto", "ana", "carla"])
+
+    def test_a_tie_on_points_goes_to_the_earlier_end_time(self):
+        # The later finisher is created first, so insertion order cannot explain a pass.
+        self.win("late", 300, hour(11))
+        self.win("early", 300, hour(10))
+        self.assertEqual(self.names(), ["early", "late"])
+
+    def test_the_tie_break_uses_the_end_time_of_the_attempt_holding_the_best_score(self):
+        self.win("beto", 340, hour(10))
+        self.win("ana", 340, hour(12))
+        self.win("ana", 340, hour(9))
+        self.assertEqual(self.names(), ["ana", "beto"])
+
+    def test_equal_points_and_end_times_fall_back_to_the_username(self):
+        self.win("zoe", 300, hour(10))
+        self.win("ana", 300, hour(10))
+        self.win("mia", 300, hour(10))
+        self.assertEqual(self.names(), ["ana", "mia", "zoe"])
+
+    def test_positions_are_strict_and_never_shared(self):
+        for name in ["d", "c", "b", "a"]:
+            self.win(name, 300, hour(10))
+        self.assertEqual([r["position"] for r in self.easy()], [1, 2, 3, 4])
+
+    def test_twelve_users_give_exactly_ten_rows_and_the_best_ten(self):
+        for i in range(12):
+            self.win(f"u{i:02d}", 100 + i, hour(10))
+        rows = self.easy()
+        self.assertEqual(len(rows), 10)
+        self.assertEqual([r["points"] for r in rows], list(range(111, 101, -1)))
+
+    def test_each_user_appears_once_with_their_best_attempt(self):
+        for points in (200, 340, 310):
+            self.win("ana", points, hour(10))
+        rows = self.easy()
+        self.assertEqual([(r["user__username"], r["points"]) for r in rows], [("ana", 340)])
+
+    def test_a_level_with_no_wins_has_no_rows(self):
+        self.win("ana", 300, hour(10), slug="facil")
+        self.assertEqual(self.names("normal"), [])
+        self.assertEqual(self.names("dificil"), [])
+
+    def test_a_win_on_one_level_does_not_list_the_user_on_another(self):
+        self.win("ana", 300, hour(10), slug="normal")
+        self.assertEqual(self.names("facil"), [])
+        self.assertEqual(self.names("normal"), ["ana"])
+
+    def test_lost_abandoned_and_active_attempts_never_appear(self):
+        ana = make_user("ana")
+        for reason in (Game.TIMEOUT, Game.MOVE_LIMIT, Game.ABANDONED):
+            make_lost(ana, "facil", reason)
+        make_game(ana, "facil")  # active
+        beto = make_user("beto")
+        make_win(beto, "facil", seconds_remaining=50, moves_remaining=0, ended_at=hour(10))
+        make_lost(beto, "facil", Game.MOVE_LIMIT)
+        self.assertEqual([(r["user__username"], r["points"]) for r in self.easy()], [("beto", 50)])
+
+    def test_an_expired_unfinalized_attempt_is_not_listed_and_stays_unchanged(self):
+        ana = make_user("ana")
+        stale = make_game(ana, "facil", started_at=T0)  # deadline long past, never finalized
+        self.win("beto", 100, hour(10))
+        self.assertEqual(self.names(), ["beto"])
+        stale.refresh_from_db()
+        self.assertEqual(stale.status, Game.ACTIVE)
+        self.assertIsNone(stale.ended_at)
+
+    def test_a_row_carries_exactly_the_public_keys(self):
+        self.win("ana", 300, hour(10))
+        (row,) = self.easy()
+        self.assertEqual(set(row), {"level_id", "user_id", "user__username", "points", "position"})

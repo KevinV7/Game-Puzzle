@@ -118,25 +118,35 @@ def player_stats(user):
 
 
 def best_attempts():
-    """One won attempt per (level, user): the one with the most points.
+    """One won attempt per (level, user): the most points, then the earliest end.
 
-    PostgreSQL ``DISTINCT ON``. Spike version: the order is deliberately
-    incomplete (no ``ended_at`` tie-break yet).
+    PostgreSQL ``DISTINCT ON``. The attempt kept is the one the leaderboard
+    ranks, so its ``ended_at`` is the tie-break against other users.
     """
-    return won_with_points().order_by("level_id", "user_id", "-points", "pk").distinct("level_id", "user_id")
+    return (
+        won_with_points()
+        .order_by("level_id", "user_id", "-points", "ended_at", "pk")
+        .distinct("level_id", "user_id")
+    )
 
 
 def top_ten():
     """The first ten ranked best attempts of every level, as dicts.
 
     Only best attempts are ranked (``pk__in`` filters before the window), and
-    the position restarts on each level.
+    the position restarts on each level. The order is a strict total one:
+    points descending, then the earlier end of the best attempt, then the
+    username (unique), so no two rows share a position.
     """
     return (
         Game.objects.filter(pk__in=best_attempts().values("pk"))
         .annotate(
             points=POINTS,
-            position=Window(RowNumber(), partition_by=F("level_id"), order_by=[F("points").desc(), "pk"]),
+            position=Window(
+                RowNumber(),
+                partition_by=F("level_id"),
+                order_by=[F("points").desc(), F("ended_at").asc(), F("user__username").asc()],
+            ),
         )
         .filter(position__lte=10)
         .order_by("level_id", "position")
