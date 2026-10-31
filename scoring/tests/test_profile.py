@@ -4,7 +4,8 @@ from datetime import timedelta
 from html.parser import HTMLParser
 
 from django.db import connection
-from django.test import TestCase
+from django.conf import settings
+from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
@@ -324,3 +325,22 @@ class ProfileMarkupTests(TestCase):
                 make_win(veteran, slug, seconds_remaining=50, moves_remaining=50)
                 make_lost(veteran, slug, "abandoned")
         self.assertEqual(count_queries(newcomer), count_queries(veteran))
+
+
+class ProfileCssTests(SimpleTestCase):
+    def setUp(self):
+        self.css = (settings.BASE_DIR / "static" / "css" / "site.css").read_text()
+
+    def test_the_stylesheet_defines_the_stacked_stats_table(self):
+        self.assertIn(".stats-table", self.css)
+        self.assertIn("attr(data-label)", self.css)
+        self.assertIn(".visually-hidden", self.css)
+
+    def test_the_stats_table_stacks_below_40rem_and_returns_from_40rem(self):
+        base, _, wide = self.css.partition("@media (min-width: 40rem)")
+        self.assertIn("grid-template-columns: minmax(0, 1fr) auto", base)
+        self.assertIn("display: table-row", wide)
+
+    def test_the_stylesheet_still_never_hides_horizontal_overflow(self):
+        self.assertNotIn("overflow-x", self.css)
+        self.assertNotRegex(self.css, r"overflow:\s*hidden")
