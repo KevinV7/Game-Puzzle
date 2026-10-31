@@ -51,6 +51,7 @@ case "${jstype%%;*}" in
 esac
 check "static sound.js content type" "javascript" "$jstype"
 check "anonymous /jugar/ redirects" 302 "$(status "$BASE_URL/jugar/")"
+check "anonymous /perfil/ redirects" 302 "$(status "$BASE_URL/perfil/")"
 
 smoke_pass="smoke-$(date +%s)-Aa1!"
 docker compose exec -T web python manage.py shell -c "
@@ -77,6 +78,7 @@ code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
   "$BASE_URL/cuentas/entrar/")"
 check "login POST with CSRF through proxy" 302 "$code"
 check "authenticated /jugar/ is reachable" 200 "$(status -b "$JAR" "$BASE_URL/jugar/")"
+check "authenticated /perfil/ is reachable" 200 "$(status -b "$JAR" "$BASE_URL/perfil/")"
 
 # 4. Game: level selection, start (POST + CSRF), board shell, JSON state and move.
 check "anonymous game API redirects" 302 "$(status "$BASE_URL/jugar/api/partidas/1/")"
