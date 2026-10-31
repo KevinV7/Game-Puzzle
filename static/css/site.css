@@ -369,8 +369,9 @@ button,
 
 /* Stats table (Perfil). Below 40rem each row stacks into a card of label/value
    pairs read from data-label, and the header row stays available to assistive
-   technology but is clipped, never hidden with overflow. From 40rem up it is a
-   normal table. */
+   technology but is clipped, never hidden with overflow. `contain: paint` keeps
+   the clipped text from adding scrollable width (it clips like overflow does,
+   without using the overflow property). From 40rem up it is a normal table. */
 .visually-hidden,
 .stats-table thead {
   position: absolute;
@@ -382,6 +383,7 @@ button,
   white-space: nowrap;
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
+  contain: paint;
 }
 
 .stats-table {
@@ -472,6 +474,7 @@ button,
     white-space: normal;
     clip: auto;
     clip-path: none;
+    contain: none;
   }
 
   .stats-table tbody {

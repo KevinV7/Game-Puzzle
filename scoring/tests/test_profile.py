@@ -336,6 +336,12 @@ class ProfileCssTests(SimpleTestCase):
         self.assertIn("attr(data-label)", self.css)
         self.assertIn(".visually-hidden", self.css)
 
+    def test_the_clipped_text_cannot_widen_the_page(self):
+        # Found at 360 px: the nowrap hint and header row added 21 px of scroll width.
+        # `contain: paint` clips them without the forbidden overflow property.
+        hidden_rule = self.css.partition(".visually-hidden,")[2].partition("}")[0]
+        self.assertIn("contain: paint", hidden_rule)
+
     def test_the_stats_table_stacks_below_40rem_and_returns_from_40rem(self):
         base, _, wide = self.css.partition("@media (min-width: 40rem)")
         self.assertIn("grid-template-columns: minmax(0, 1fr) auto", base)
