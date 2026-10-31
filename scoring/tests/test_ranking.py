@@ -1,9 +1,13 @@
 """Leaderboard queries: best attempt per user and level, ranking and viewer position."""
 
+import random
+
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from game.models import Game, Level
-from scoring.queries import top_ten
+from scoring.queries import leaderboard, position_of, top_ten, viewer_bests
 
 from .helpers import T0, make_game, make_lost, make_user, make_win
 
@@ -164,3 +168,161 @@ class OrderingAndVisibilityTests(TestCase):
         self.win("ana", 300, hour(10))
         (row,) = self.easy()
         self.assertEqual(set(row), {"level_id", "user_id", "user__username", "points", "position"})
+
+
+class ViewerPositionTests(TestCase):
+    """The viewer's own best, rows flagged for them and their position outside the top 10."""
+
+    def win(self, user, points, ended_at, slug="facil"):
+        """Win on ``slug`` scoring ``points * multiplier`` (seconds plus moves, times the multiplier)."""
+        return make_win(user, slug, seconds_remaining=points, moves_remaining=0, ended_at=ended_at)
+
+    def crowd(self, count, points, ended_at, slug="facil", prefix="u"):
+        return [self.win(make_user(f"{prefix}{i:02d}"), points, ended_at, slug) for i in range(count)]
+
+    def board(self, user, slug="facil"):
+        return next(entry for entry in leaderboard(user) if entry.level.slug == slug)
+
+    def test_viewer_bests_holds_only_the_viewers_best_attempt_per_level(self):
+        ana, beto = make_user("ana"), make_user("beto")
+        for points in (200, 340, 310):
+            self.win(ana, points, hour(10))
+        self.win(ana, 100, hour(10), "normal")
+        self.win(beto, 999, hour(10))
+        bests = {g.level.slug: g.points for g in viewer_bests(ana).select_related("level")}
+        self.assertEqual(bests, {"facil": 340, "normal": 200})
+
+    def test_leaderboard_has_one_entry_per_level_in_progression_order_even_when_empty(self):
+        entries = leaderboard(make_user("ana"))
+        self.assertEqual([e.level.slug for e in entries], ["facil", "normal", "dificil"])
+        self.assertTrue(all(e.rows == [] and e.own is None for e in entries))
+
+    def test_rows_are_flagged_only_on_the_viewers_own_row(self):
+        ana = make_user("ana")
+        self.win(ana, 300, hour(10))
+        self.crowd(3, 200, hour(10))
+        flags = [(r["user__username"], r["is_viewer"]) for r in self.board(ana).rows]
+        self.assertEqual(flags, [("ana", True), ("u00", False), ("u01", False), ("u02", False)])
+
+    def test_the_viewer_at_position_10_is_in_the_rows_and_has_no_own(self):
+        viewer = make_user("viki")
+        self.crowd(9, 500, hour(10))
+        self.win(viewer, 400, hour(10))
+        board = self.board(viewer)
+        self.assertEqual(len(board.rows), 10)
+        self.assertEqual(board.rows[-1]["user__username"], "viki")
+        self.assertIsNone(board.own)
+
+    def test_the_viewer_at_position_11_gets_own_with_their_points(self):
+        viewer = make_user("viki")
+        self.crowd(10, 500, hour(10))
+        self.win(viewer, 400, hour(10))
+        board = self.board(viewer)
+        self.assertEqual(len(board.rows), 10)
+        self.assertFalse(any(r["is_viewer"] for r in board.rows))
+        self.assertEqual((board.own.position, board.own.points), (11, 400))
+
+    def test_the_viewer_at_position_14_with_a_tie_matches_a_hand_count(self):
+        viewer = make_user("viki")
+        self.crowd(11, 500, hour(10))  # 11 users ahead on points
+        self.win(make_user("aaron"), 300, hour(9))  # earlier end: ahead
+        self.win(make_user("bruno"), 300, hour(10))  # same end, smaller username: ahead
+        self.win(make_user("zed"), 300, hour(10))  # same end, larger username: behind
+        self.win(make_user("yan"), 300, hour(11))  # later end: behind
+        self.win(viewer, 300, hour(10))
+        self.assertEqual(self.board(viewer).own.position, 14)
+
+    def test_ten_users_at_400_and_the_viewer_at_400_reached_later_gives_11(self):
+        viewer = make_user("aaa")  # the smallest username, so only the end time can place them
+        self.crowd(10, 400, hour(10))
+        self.win(viewer, 400, hour(11))
+        self.assertEqual(self.board(viewer).own.position, 11)
+
+    def test_the_username_decides_when_points_and_end_times_are_equal(self):
+        late_name, early_name = make_user("zed"), make_user("aaa")
+        self.crowd(10, 400, hour(10), prefix="m")
+        self.win(late_name, 400, hour(10))
+        self.win(early_name, 400, hour(10))
+        self.assertEqual(self.board(late_name).own.position, 12)
+        self.assertIsNone(self.board(early_name).own)
+        self.assertEqual(self.board(early_name).rows[0]["user__username"], "aaa")
+
+    def test_a_viewer_without_a_win_on_the_level_has_no_own(self):
+        viewer = make_user("viki")
+        self.crowd(11, 500, hour(10))
+        make_lost(viewer, "facil", Game.TIMEOUT)
+        self.win(viewer, 100, hour(10), "normal")  # a win elsewhere does not count here
+        self.assertIsNone(self.board(viewer).own)
+        self.assertIsNone(self.board(viewer, "dificil").own)
+
+    def test_position_of_counts_users_not_attempts(self):
+        viewer, rival = make_user("viki"), make_user("rival")
+        for points in (400, 410, 420):
+            self.win(rival, points, hour(10))
+        self.win(viewer, 300, hour(10))
+        best = viewer_bests(viewer).get()
+        self.assertEqual(position_of(viewer, best.level, best), 2)
+
+    def test_position_of_matches_a_plain_python_ranking_for_every_user(self):
+        rng = random.Random(2026)
+        for level in Level.objects.all():
+            attempts = {}
+            for i in range(15):
+                user = make_user(f"{level.slug[:1]}{rng.randrange(100):02d}x{i}")
+                for _ in range(rng.randint(1, 3)):
+                    points = rng.choice([100, 150, 200])
+                    ended_at = hour(rng.choice([8, 9, 10]))
+                    make_win(user, level.slug, seconds_remaining=points, moves_remaining=0, ended_at=ended_at)
+                    attempts.setdefault(user, []).append((-points * level.multiplier, ended_at))
+            order = sorted(attempts, key=lambda u: (min(attempts[u]), u.username))
+            for rank, user in enumerate(order, start=1):
+                best = viewer_bests(user).get(level=level)
+                self.assertEqual(position_of(user, level, best), rank, user.username)
+            expected = [(u.username, -min(attempts[u])[0], r) for r, u in enumerate(order[:10], start=1)]
+            rows = [r for r in top_ten() if r["level_id"] == level.pk]
+            self.assertEqual([(r["user__username"], r["points"], r["position"]) for r in rows], expected)
+
+
+class LeaderboardQueryCountTests(TestCase):
+    """Query counts depend on the viewer's levels, never on the number of players."""
+
+    def count(self, user):
+        with CaptureQueriesContext(connection) as queries:
+            leaderboard(user)
+        return len(queries)
+
+    def players(self, count, first=0):
+        """``count`` players, each with a win on every level, numbered from ``first``."""
+        for i in range(first, first + count):
+            user = make_user(f"p{i:02d}")
+            for slug in ("facil", "normal", "dificil"):
+                make_win(user, slug, seconds_remaining=500 - i, moves_remaining=0, ended_at=hour(10))
+
+    def test_a_viewer_with_no_win_runs_the_three_base_queries(self):
+        viewer = make_user("viki")
+        self.players(3)
+        with self.assertNumQueries(3):
+            leaderboard(viewer)
+
+    def test_the_count_is_the_same_for_3_players_as_for_12(self):
+        viewer = make_user("viki")
+        self.players(3)
+        few = self.count(viewer)
+        self.players(9, first=3)
+        self.assertEqual(few, self.count(viewer))
+
+    def test_a_viewer_inside_the_top_10_adds_no_position_query(self):
+        viewer = make_user("viki")
+        self.players(3)
+        for slug in ("facil", "normal", "dificil"):
+            make_win(viewer, slug, seconds_remaining=900, moves_remaining=0, ended_at=hour(10))
+        with self.assertNumQueries(3):
+            leaderboard(viewer)
+
+    def test_each_level_where_the_viewer_is_outside_the_top_10_adds_exactly_one_query(self):
+        viewer = make_user("viki")
+        self.players(12)
+        for expected, slug in enumerate(("facil", "normal", "dificil"), start=4):
+            make_win(viewer, slug, seconds_remaining=1, moves_remaining=0, ended_at=hour(10))
+            with self.assertNumQueries(expected):
+                leaderboard(viewer)

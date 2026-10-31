@@ -152,3 +152,76 @@ def top_ten():
         .order_by("level_id", "position")
         .values("level_id", "user_id", "user__username", "points", "position")
     )
+
+
+def viewer_bests(user):
+    """The viewer's own best attempt on each level they have won, with ``points``.
+
+    Filtering by user before ``DISTINCT ON`` is safe here because the user is
+    part of the partition.
+    """
+    return best_attempts().filter(user=user)
+
+
+def position_of(user, level, best):
+    """The viewer's strict position on ``level``: 1 plus the users who beat ``best``.
+
+    ``best`` is the viewer's best attempt on that level (from ``viewer_bests``).
+    A user beats it exactly when that user's own best does, because the order
+    compares one user's attempts lexicographically, so no best-attempt
+    subquery is needed. This is a count on purpose: filtering the ranked
+    ``top_ten`` queryset by user would rank the viewer before the other users
+    are counted and always return position 1.
+    """
+    beaten_by = (
+        Q(points__gt=best.points)
+        | Q(points=best.points, ended_at__lt=best.ended_at)
+        | Q(points=best.points, ended_at=best.ended_at, user__username__lt=user.username)
+    )
+    others = won_with_points().filter(level=level).exclude(user=user).filter(beaten_by)
+    return 1 + others.order_by().values("user").distinct().count()
+
+
+@dataclass(frozen=True)
+class OwnPosition:
+    """The viewer's place on a level where they are not in the visible rows."""
+
+    position: int
+    points: int
+
+
+@dataclass(frozen=True)
+class LevelBoard:
+    """One leaderboard table.
+
+    ``rows`` are the ``top_ten`` dicts for the level plus ``is_viewer``;
+    ``own`` is None when the viewer has no win on the level or is already in ``rows``.
+    """
+
+    level: Level
+    rows: list
+    own: OwnPosition | None
+
+
+def leaderboard(user):
+    """One ``LevelBoard`` per level, in ``Level.order``.
+
+    Three queries (levels, top ten, viewer bests) however many players there
+    are, plus one count for each level where the viewer has a win but is
+    outside the top ten.
+    """
+    levels = list(Level.objects.all())
+    rows_by_level = {level.pk: [] for level in levels}
+    for row in top_ten():
+        rows_by_level[row["level_id"]].append({**row, "is_viewer": row["user_id"] == user.pk})
+    bests = {game.level_id: game for game in viewer_bests(user)}
+
+    boards = []
+    for level in levels:
+        rows = rows_by_level[level.pk]
+        best = bests.get(level.pk)
+        own = None
+        if best is not None and not any(row["is_viewer"] for row in rows):
+            own = OwnPosition(position_of(user, level, best), best.points)
+        boards.append(LevelBoard(level=level, rows=rows, own=own))
+    return boards
