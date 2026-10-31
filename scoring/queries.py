@@ -7,10 +7,11 @@ never imports this module.
 from dataclasses import dataclass
 from datetime import timedelta
 
-from django.db.models import Count, F, Max, Q, Sum
+from django.db.models import Count, F, Max, Q, Sum, Window
+from django.db.models.functions import RowNumber
 
 from game.models import Game, Level
-from game.score import POINTS
+from game.score import POINTS, won_with_points
 
 _MICROSECOND = timedelta(microseconds=1)
 
@@ -114,3 +115,30 @@ def player_stats(user):
         sum(bests) if bests else None,
     )
     return PlayerStats(levels=rows, totals=totals)
+
+
+def best_attempts():
+    """One won attempt per (level, user): the one with the most points.
+
+    PostgreSQL ``DISTINCT ON``. Spike version: the order is deliberately
+    incomplete (no ``ended_at`` tie-break yet).
+    """
+    return won_with_points().order_by("level_id", "user_id", "-points", "pk").distinct("level_id", "user_id")
+
+
+def top_ten():
+    """The first ten ranked best attempts of every level, as dicts.
+
+    Only best attempts are ranked (``pk__in`` filters before the window), and
+    the position restarts on each level.
+    """
+    return (
+        Game.objects.filter(pk__in=best_attempts().values("pk"))
+        .annotate(
+            points=POINTS,
+            position=Window(RowNumber(), partition_by=F("level_id"), order_by=[F("points").desc(), "pk"]),
+        )
+        .filter(position__lte=10)
+        .order_by("level_id", "position")
+        .values("level_id", "user_id", "user__username", "points", "position")
+    )
