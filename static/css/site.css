@@ -508,7 +508,12 @@ button,
     width: auto;
     min-width: 20rem;
   }
+}
 
+/* The stats table returns from 48rem, not 40rem: with header words kept whole
+   its narrowest layout needs about 640px, which does not fit the 40rem-48rem
+   range once the page padding is taken out. Below 48rem the stacked cards stay. */
+@media (min-width: 48rem) {
   .stats-table {
     display: table;
   }
@@ -537,10 +542,33 @@ button,
     border: 0;
   }
 
+  /* The body sets overflow-wrap: anywhere for long usernames; in the table it
+     would shrink header columns to one letter. Keep words whole (headers may
+     still wrap between words). */
+  .stats-table thead th {
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: manual;
+  }
+
+  .stats-table th[scope="row"] {
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: manual;
+  }
+
+  /* A block caption inside a display: table box lands in an anonymous
+     first-column cell; a real table-caption spans the whole table. */
+  .stats-table caption {
+    display: table-caption;
+    caption-side: top;
+    overflow-wrap: normal;
+  }
+
   .stats-table th,
   .stats-table td {
     display: table-cell;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem;
     border-bottom: 1px solid var(--color-border);
     text-align: right;
   }
