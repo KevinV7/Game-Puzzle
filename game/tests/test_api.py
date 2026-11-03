@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from unittest import mock
 
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -20,7 +21,7 @@ from game.tests.helpers import (
 # 3x3 board, gap at index 3 (neighbours: tiles 4, 2 and 7), not close to solved.
 # Tile 4 belongs in index 3, so moving it lands in place; tile 2 does not.
 SCRAMBLED = [4, 1, 3, 0, 2, 6, 7, 5, 8]
-RESPONSE_KEYS = {"game", "move", "ended", "next_level", "completed_all", "can_switch"}
+RESPONSE_KEYS = {"game", "move", "ended", "next_level", "completed_all", "can_switch", "score"}
 GAME_KEYS = {"id", "level", "size", "board", "moves_used", "move_limit", "seconds_remaining", "status", "loss_reason"}
 
 
@@ -35,15 +36,6 @@ def post_move(client, game, tile, seq=None, **extra):
     body = {"tile": tile, "seq": game.moves_used + 1 if seq is None else seq}
     body.update(extra)
     return client.post(reverse("game-move", args=[game.id]), json.dumps(body), content_type="application/json")
-
-
-def keys_of(value):
-    """Every dict key found anywhere in a decoded JSON value."""
-    if isinstance(value, dict):
-        return set(value) | set().union(*(keys_of(item) for item in value.values()), set())
-    if isinstance(value, list):
-        return set().union(*(keys_of(item) for item in value), set())
-    return set()
 
 
 class ApiTestCase(TestCase):
@@ -187,14 +179,74 @@ class MoveResponseTests(ApiTestCase):
         self.assertEqual(data["game"]["moves_used"], 12)
         self.assertIsNone(data["move"])
 
-    def test_no_response_carries_a_score(self):
-        game = live_game(self.ana, board=almost_solved(3))
-        responses = [
-            self.client.get(reverse("game-state", args=[game.id])),
-            post_move(self.client, game, winning_tile(3)),
-        ]
-        for response in responses:
-            self.assertFalse({key for key in keys_of(response.json()) if "score" in key})
+
+class ScorePayloadTests(ApiTestCase):
+    def winning_response(self, slug="facil", *, moves_used=20, elapsed=40):
+        """Play the winning move of an almost solved board, with the server clock frozen."""
+        size = {"facil": 3, "normal": 4, "dificil": 5}[slug]
+        now = timezone.now()
+        game = live_game(
+            self.ana,
+            slug,
+            board=almost_solved(size),
+            moves_used=moves_used,
+            started_at=now - timedelta(seconds=elapsed),
+        )
+        with mock.patch("django.utils.timezone.now", return_value=now):
+            return game, post_move(self.client, game, winning_tile(size))
+
+    def test_a_winning_move_carries_the_breakdown_equal_to_the_game_fields(self):
+        game, response = self.winning_response()
+        data = response.json()
+        self.assertEqual(data["game"]["status"], "won")
+        # 40 s elapsed of 180 and 20 + 1 moves of 300.
+        self.assertEqual(data["score"], {"seconds_remaining": 140, "moves_remaining": 279, "multiplier": 1, "points": 419})
+        self.assertEqual(data["score"]["seconds_remaining"], data["game"]["seconds_remaining"])
+        self.assertEqual(data["score"]["moves_remaining"], data["game"]["move_limit"] - data["game"]["moves_used"])
+
+    def test_a_normal_win_uses_the_multiplier_of_the_level(self):
+        make_won(self.ana, "facil")
+        _, response = self.winning_response("normal")
+        score = response.json()["score"]
+        self.assertEqual(score["multiplier"], 2)
+        self.assertEqual(score["points"], (score["seconds_remaining"] + score["moves_remaining"]) * 2)
+
+    def test_the_state_of_a_won_game_returns_the_same_score_now_and_later(self):
+        game, response = self.winning_response()
+        score = response.json()["score"]
+        url = reverse("game-state", args=[game.id])
+        self.assertEqual(self.client.get(url).json()["score"], score)
+        self.assertEqual(self.client.get(url).json()["score"], score)
+
+    def test_an_active_game_carries_a_null_score(self):
+        game = live_game(self.ana)
+        self.assertIsNone(self.client.get(reverse("game-state", args=[game.id])).json()["score"])
+        self.assertIsNone(post_move(self.client, game, 4).json()["score"])
+
+    def test_a_loss_and_its_replacement_carry_a_null_score(self):
+        game = live_game(self.ana, moves_used=299)
+        data = post_move(self.client, game, 5).json()
+        self.assertEqual(data["ended"]["status"], "lost")
+        self.assertIsNone(data["score"])
+        self.assertNotIn("score", data["ended"])
+
+    def test_the_stale_409_payload_carries_a_null_score(self):
+        game = live_game(self.ana, moves_used=5)
+        data = post_move(self.client, game, 4, seq=3).json()
+        self.assertEqual(data["error"], "stale")
+        self.assertIsNone(data["score"])
+
+    def test_the_stale_409_of_a_finished_win_carries_its_score(self):
+        won = make_won(self.ana)
+        data = post_move(self.client, won, 4, seq=won.moves_used + 1).json()
+        self.assertEqual(data["game"]["status"], "won")
+        self.assertEqual(data["score"]["points"], data["score"]["seconds_remaining"] + data["score"]["moves_remaining"])
+
+    def test_the_ended_object_never_has_a_score_key(self):
+        game = live_game(self.ana, started_at=timezone.now() - timedelta(hours=1))
+        data = self.client.get(reverse("game-state", args=[game.id])).json()
+        self.assertEqual(data["ended"]["loss_reason"], "timeout")
+        self.assertNotIn("score", data["ended"])
 
 
 class StaleMoveTests(ApiTestCase):

@@ -14,7 +14,9 @@ from django.utils import timezone
 from game.models import Game
 from game.tests.helpers import make_completed_user, make_game, make_user, make_user_who_won
 
-FORBIDDEN_SCORE_WORDS = ["puntuación", "puntos", "score"]
+# The embedded json_script state now holds a ``"score": null`` key, so these words are
+# looked for in the visible markup only.
+FORBIDDEN_SCORE_WORDS = ["puntuación", "puntos"]
 
 
 def start_form(slug):
@@ -32,6 +34,11 @@ def card(response, name):
     match = re.search(rf'<article class="level-card[^"]*">(?:(?!</article>).)*?<h2>{name}</h2>.*?</article>', content, re.S)
     assert match, f"no card for {name}"
     return match.group(0)
+
+
+def visible_html(response):
+    """The page without the ``json_script`` state block (markup the player can see or hook)."""
+    return re.sub(r'<script id="game-state" type="application/json">.*?</script>', "", response.content.decode(), flags=re.S)
 
 
 def embedded_state(response):
@@ -260,7 +267,7 @@ class BoardShellTests(ViewTestCase):
 
     def test_before_completion_there_is_no_restart_and_no_level_switch(self):
         live_game(self.ana)
-        content = self.client.get(reverse("game-board", args=["facil"])).content.decode()
+        content = visible_html(self.client.get(reverse("game-board", args=["facil"])))
         for forbidden in ["Elegir otro nivel", "Reiniciar", "Reintentar", "Empezar de nuevo", *FORBIDDEN_SCORE_WORDS]:
             with self.subTest(forbidden):
                 self.assertNotIn(forbidden.lower(), content.lower())
@@ -276,10 +283,18 @@ class BoardShellTests(ViewTestCase):
 
     def test_the_win_panel_is_hidden_and_free_of_scores(self):
         live_game(self.ana)
-        content = self.client.get(reverse("game-board", args=["facil"])).content.decode()
+        content = visible_html(self.client.get(reverse("game-board", args=["facil"])))
         self.assertRegex(content, r'<section[^>]*id="win-panel"[^>]*hidden')
         for word in FORBIDDEN_SCORE_WORDS:
             self.assertNotIn(word, content.lower())
+
+    def test_the_win_panel_has_an_empty_hidden_score_line_between_title_and_text(self):
+        live_game(self.ana)
+        content = self.client.get(reverse("game-board", args=["facil"])).content.decode()
+        panel = re.search(r'<section[^>]*id="win-panel".*?</section>', content, re.S).group(0)
+        self.assertRegex(panel, r'<p id="win-score"[^>]*hidden[^>]*></p>')
+        self.assertLess(panel.index('id="win-title"'), panel.index('id="win-score"'))
+        self.assertLess(panel.index('id="win-score"'), panel.index('id="win-text"'))
 
     def test_viewing_the_board_of_an_expired_attempt_shows_its_replacement(self):
         old = live_game(self.ana, started_at=timezone.now() - timedelta(hours=1))
@@ -326,12 +341,13 @@ class BoardScriptHookTests(ViewTestCase):
         state = embedded_state(self.get_board())
         for key in ["id", "board", "size", "moves_used", "move_limit", "seconds_remaining", "status"]:
             self.assertIn(key, state["game"])
-        for key in ["ended", "next_level", "completed_all", "can_switch"]:
+        for key in ["ended", "next_level", "completed_all", "can_switch", "score"]:
             self.assertIn(key, state)
+        self.assertIsNone(state["score"])
 
     def test_the_counters_and_notice_are_the_elements_the_script_updates(self):
         content = self.get_board().content.decode()
-        for element_id in ["moves", "time", "notice", "board", "win-panel", "win-title", "win-text", "win-actions"]:
+        for element_id in ["moves", "time", "notice", "board", "win-panel", "win-title", "win-score", "win-text", "win-actions"]:
             with self.subTest(element_id):
                 self.assertRegex(content, rf'id="{element_id}"')
 

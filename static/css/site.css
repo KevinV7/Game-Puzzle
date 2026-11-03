@@ -304,6 +304,13 @@ button,
   outline: none;
 }
 
+/* The breakdown can be long: it wraps between words instead of widening the page. */
+.win-score {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
 .win-form {
   margin: 0;
 }
