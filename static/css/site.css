@@ -466,6 +466,7 @@ button,
 .leaderboard-table td:last-child {
   width: 1%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .leaderboard-table .is-viewer {
@@ -478,6 +479,7 @@ button,
   width: auto;
   color: var(--color-muted);
   text-align: left;
+  white-space: normal;
 }
 
 .own-position {

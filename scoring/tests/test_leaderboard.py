@@ -298,6 +298,13 @@ class LeaderboardCssTests(SimpleTestCase):
         self.assertIn(".own-position", self.css)
         self.assertIn(".leaderboard-table", self.css)
 
+    def test_the_position_and_score_columns_never_wrap_their_digits(self):
+        # With a long unbreakable username the narrow columns would shrink to one
+        # character wide and stack their digits and headers vertically (seen at 360 px).
+        rule = re.search(r"\.leaderboard-table th:first-child,[^{]*\{([^}]*)\}", self.css)
+        self.assertIsNotNone(rule)
+        self.assertRegex(rule.group(1), r"white-space:\s*nowrap")
+
     def test_the_placeholder_rule_is_gone(self):
         self.assertNotIn(".placeholder", self.css)
 
