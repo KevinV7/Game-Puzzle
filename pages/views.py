@@ -1,19 +1,9 @@
 from django.contrib.auth.decorators import login_not_required
 from django.views.generic import TemplateView
 
-
-def placeholder(title, message="Aún no disponible."):
-    return TemplateView.as_view(
-        template_name="pages/placeholder.html",
-        extra_context={"title": title, "message": message},
-    )
-
-
 # Public entry pages: opt out of LoginRequiredMiddleware explicitly.
 home = login_not_required(TemplateView.as_view(template_name="pages/home.html"))
-
-# Protected by LoginRequiredMiddleware: no opt-out here on purpose.
-# (The Play page lives in the game app: see game/urls.py.)
-leaderboard = placeholder("Clasificación")
-
 instructions = login_not_required(TemplateView.as_view(template_name="pages/instructions.html"))
+
+# The protected pages live in their own apps: Play in game/urls.py, Perfil and
+# Clasificación in scoring/urls.py. No opt-out here on purpose.

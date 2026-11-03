@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Clasificación{% endblock %}
+
+{% block content %}
+<h1>Clasificación</h1>
+{% for board in boards %}
+<section class="leaderboard-level">
+  <h2>{{ board.level.name }}</h2>
+  <table class="leaderboard-table">
+    <caption>Clasificación {{ board.level.name }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Posición</th>
+        <th scope="col">Jugador</th>
+        <th scope="col">Puntaje</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in board.rows %}
+      <tr{% if row.is_viewer %} class="is-viewer" aria-current="true"{% endif %}>
+        <td>{{ row.position }}</td>
+        <td>{{ row.user__username }}{% if row.is_viewer %} <span>(tú)</span>{% endif %}</td>
+        <td>{{ row.points }}</td>
+      </tr>
+      {% empty %}
+      <tr class="empty-row">
+        <td colspan="3">Aún no hay puntajes en este nivel</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if board.own %}
+  <p class="own-position">Tu posición: {{ board.own.position }} ({{ board.own.points }} punto{{ board.own.points|pluralize }})</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}
