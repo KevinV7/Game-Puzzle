@@ -1,15 +1,31 @@
-/* Mobile-first stylesheet. Base rules target a 360 px viewport; wider layouts
-   are added with min-width media queries. Never hide overflow on the page to
-   mask a layout bug: wrapping and fluid sizes keep content inside the viewport. */
+/* Mobile-first stylesheet, neo-brutalist theme: flat loud colours, thick black
+   borders, hard offset shadows with no blur, square corners, heavy type.
+   Base rules target a 360 px viewport; wider layouts are added with min-width
+   media queries. Never hide overflow on the page to mask a layout bug: wrapping
+   and fluid sizes keep content inside the viewport. Box shadows do not add
+   scrollable width, so the offset shadows never cause a horizontal scrollbar.
+   Elements the script toggles with the `hidden` attribute must not set
+   `display` here: a class rule would beat the `[hidden]` rule below. */
 :root {
-  --color-text: #1f2430;
-  --color-muted: #5a6275;
-  --color-bg: #ffffff;
-  --color-surface: #f2f4f8;
-  --color-border: #d3d8e2;
-  --color-accent: #2557d6;
-  --color-accent-text: #ffffff;
-  --radius: 0.5rem;
+  --color-text: #000000;
+  --color-muted: #333333;
+  --color-bg: #fff4d6;
+  --color-surface: #ffffff;
+  --color-border: #000000;
+  --color-accent: #ffd23f;
+  --color-accent-text: #000000;
+  --color-pink: #ff6fb5;
+  --color-blue: #7db3ff;
+  --color-green: #5be37d;
+  --color-red: #ff5a5f;
+  --color-locked: #d8d2c2;
+  --color-focus: #d6007a;
+  --border: 3px solid var(--color-border);
+  --shadow: 6px 6px 0 var(--color-border);
+  --shadow-small: 3px 3px 0 var(--color-border);
+  --radius: 0;
+  --font-heading: "Arial Black", Impact, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 *,
@@ -27,16 +43,27 @@ video {
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: "Helvetica Neue", Arial, system-ui, sans-serif;
+  font-weight: 500;
   line-height: 1.5;
   color: var(--color-text);
-  background: var(--color-bg);
+  background-color: var(--color-bg);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.18) 1px, transparent 1px);
+  background-size: 18px 18px;
   overflow-wrap: anywhere;
+}
+
+::selection {
+  color: var(--color-text);
+  background: var(--color-pink);
 }
 
 h1,
 h2 {
-  line-height: 1.2;
+  font-family: var(--font-heading);
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
   margin: 0 0 0.75rem;
 }
 
@@ -53,14 +80,27 @@ p {
 }
 
 a {
-  color: var(--color-accent);
+  color: var(--color-text);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 3px;
+}
+
+a:not(.button):hover {
+  background: var(--color-accent);
+}
+
+a:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: 4px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 /* Layout */
 .site-header {
   padding: 0.75rem 1rem;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--color-accent);
+  border-bottom: 5px solid var(--color-border);
 }
 
 .site-main {
@@ -79,19 +119,41 @@ a {
 .site-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.site-nav ul a {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--color-surface);
+  border: var(--border);
+}
+
+.site-nav ul a:hover {
+  background: var(--color-pink);
+  box-shadow: var(--shadow-small);
+}
+
 .brand {
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-transform: uppercase;
   text-decoration: none;
 }
 
 .nav-auth {
   margin-left: auto;
+}
+
+.nav-user {
+  font-family: var(--font-mono);
+  font-weight: 800;
 }
 
 .nav-logout {
@@ -105,18 +167,49 @@ button,
   max-width: 100%;
   padding: 0.6rem 1.25rem;
   font: inherit;
-  font-weight: 600;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   text-align: center;
   text-decoration: none;
+  text-transform: uppercase;
   color: var(--color-accent-text);
   background: var(--color-accent);
-  border: 0;
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-small);
   cursor: pointer;
+  transition: transform 80ms, box-shadow 80ms;
+}
+
+button:hover,
+.button:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--color-border);
+}
+
+button:active,
+.button:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .button {
+    transition: none;
+  }
+
+  button:hover,
+  .button:hover,
+  button:active,
+  .button:active {
+    transform: none;
+  }
 }
 
 .nav-logout button {
-  padding: 0.25rem 0.75rem;
+  padding: 0.15rem 0.75rem;
+  background: var(--color-surface);
 }
 
 .form input {
@@ -127,8 +220,11 @@ button,
   width: 100%;
   padding: 0.5rem;
   font: inherit;
-  border: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  background: var(--color-surface);
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-small);
 }
 
 .form .helptext,
@@ -138,7 +234,8 @@ button,
 }
 
 .errorlist {
-  color: #b3261e;
+  color: #a1001a;
+  font-weight: 800;
 }
 
 /* Home */
@@ -147,9 +244,17 @@ button,
   padding: 1.5rem 0;
 }
 
+.hero h1 {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-pink);
+  border: var(--border);
+  box-shadow: var(--shadow);
+}
+
 .lead {
   font-size: 1.125rem;
-  color: var(--color-muted);
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .actions {
@@ -178,12 +283,13 @@ button,
 .example-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.25rem;
+  gap: 0.3rem;
   width: 100%;
   max-width: 12rem;
-  padding: 0.25rem;
+  padding: 0.3rem;
   background: var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .example-tile {
@@ -191,11 +297,12 @@ button,
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
+  font-family: var(--font-mono);
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 900;
   color: var(--color-accent-text);
   background: var(--color-accent);
-  border-radius: 0.25rem;
+  border-radius: 0;
 }
 
 .example-tile-empty {
@@ -216,23 +323,29 @@ button,
 .panel {
   padding: 1rem;
   background: var(--color-surface);
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .level-list {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .level-card {
   padding: 1rem;
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .level-locked {
   color: var(--color-muted);
-  background: var(--color-surface);
+  background: var(--color-locked);
+  border-style: dashed;
+  box-shadow: none;
 }
 
 .level-facts {
@@ -242,7 +355,8 @@ button,
 
 .level-status {
   margin: 0 0 0.5rem;
-  font-weight: 700;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .level-hint {
@@ -265,39 +379,39 @@ button,
 
 .counter {
   margin: 0 0 0.5rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-weight: 800;
 }
 
-/* Mute toggle: a quiet secondary button, at least 44 px tall to be a touch target. */
+/* Mute toggle: a secondary button, at least 44 px tall to be a touch target. */
 .mute-toggle {
   min-height: 2.75rem;
   margin: 0 0 0.5rem;
   color: var(--color-text);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
 }
 
 .mute-toggle[aria-pressed="true"] {
-  color: var(--color-accent-text);
-  background: var(--color-muted);
-  border-color: var(--color-muted);
-}
-
-.mute-toggle:focus-visible {
-  outline: 3px solid var(--color-text);
-  outline-offset: 2px;
+  color: var(--color-bg);
+  background: var(--color-text);
 }
 
 .notice,
 .win-panel {
   margin: 0 0 1rem;
   padding: 1rem;
-  background: var(--color-surface);
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .notice {
-  font-weight: 700;
+  font-weight: 800;
+  background: var(--color-red);
+}
+
+.win-panel {
+  background: var(--color-green);
 }
 
 .win-panel h2:focus {
@@ -306,8 +420,12 @@ button,
 
 /* The breakdown can be long: it wraps between words instead of widening the page. */
 .win-score {
-  margin: 0 0 0.5rem;
-  font-weight: 700;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  color: var(--color-accent);
+  background: var(--color-text);
   overflow-wrap: break-word;
 }
 
@@ -319,14 +437,15 @@ button,
 .board {
   display: grid;
   grid-template-columns: repeat(var(--size), 1fr);
-  gap: 0.25rem;
+  gap: 0.3rem;
   width: min(100%, 28rem);
   aspect-ratio: 1;
   margin: 0 0 1rem;
-  padding: 0.25rem;
+  padding: 0.3rem;
   list-style: none;
   background: var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -336,42 +455,57 @@ button,
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-mono);
   font-size: clamp(1rem, 6vw, 1.75rem);
-  font-weight: 700;
+  font-weight: 900;
   color: var(--color-accent-text);
   background: var(--color-accent);
-  border-radius: 0.25rem;
+  border-radius: 0;
 }
 
 .tile-gap {
   background: transparent;
 }
 
-/* A tile is a button that fills its cell; the cell supplies size, colour and font. */
+/* A tile is a button that fills its cell; the cell supplies size, colour and font.
+   It drops the button chrome (border, shadow, motion) so the cell stays flat. */
 .tile-button {
   width: 100%;
   height: 100%;
   padding: 0;
   font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
   color: inherit;
   background: transparent;
+  border: 0;
   border-radius: inherit;
+  box-shadow: none;
+  transform: none;
 }
 
 .tile-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.14);
+  box-shadow: none;
+  transform: none;
+}
+
+.tile-button:active {
+  background: var(--color-pink);
+  box-shadow: none;
+  transform: none;
 }
 
 .tile-button:focus-visible {
-  outline: 3px solid var(--color-text);
-  outline-offset: 2px;
+  outline: 4px solid var(--color-focus);
+  outline-offset: -4px;
 }
 
-/* Stats table (Perfil). Below 40rem each row stacks into a card of label/value
+/* Stats table (Perfil). Below 48rem each row stacks into a card of label/value
    pairs read from data-label, and the header row stays available to assistive
    technology but is clipped, never hidden with overflow. `contain: paint` keeps
    the clipped text from adding scrollable width (it clips like overflow does,
-   without using the overflow property). From 40rem up it is a normal table. */
+   without using the overflow property). From 48rem up it is a normal table. */
 .visually-hidden,
 .stats-table thead {
   position: absolute;
@@ -395,8 +529,10 @@ button,
 .stats-table caption {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-weight: 900;
   text-align: left;
+  text-transform: uppercase;
 }
 
 .stats-table tbody {
@@ -407,21 +543,24 @@ button,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.25rem 1rem;
-  margin: 0 0 0.75rem;
+  margin: 0 0 1rem;
   padding: 0.75rem;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-small);
 }
 
 .stats-table .stats-total {
-  border-color: var(--color-accent);
+  background: var(--color-accent);
 }
 
 .stats-table th[scope="row"] {
   grid-column: 1 / -1;
+  font-family: var(--font-heading);
   font-size: 1.125rem;
   text-align: left;
+  text-transform: uppercase;
 }
 
 .stats-table td {
@@ -429,12 +568,15 @@ button,
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
   text-align: right;
 }
 
 .stats-table td::before {
   content: attr(data-label);
-  font-weight: 600;
+  font-family: "Helvetica Neue", Arial, system-ui, sans-serif;
+  font-weight: 800;
   color: var(--color-muted);
   text-align: left;
 }
@@ -442,7 +584,7 @@ button,
 /* Leaderboard (Clasificación). Three narrow columns at every width: the position
    and the score take only what their digits need and the username column takes the
    rest, wrapping long names through the body's overflow-wrap. The viewer's row is
-   marked with a border and a surface colour, and with "(tú)" in the markup, so the
+   marked with a border bar and a fill colour, and with "(tú)" in the markup, so the
    highlight never relies on colour alone. */
 .leaderboard-level {
   margin: 0 0 1.5rem;
@@ -451,20 +593,37 @@ button,
 .leaderboard-table {
   width: 100%;
   margin: 0 0 0.75rem;
+  background: var(--color-surface);
+  border: var(--border);
   border-collapse: collapse;
+  box-shadow: var(--shadow-small);
 }
 
 .leaderboard-table caption {
   margin-bottom: 0.5rem;
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-weight: 900;
   text-align: left;
+  text-transform: uppercase;
 }
 
 .leaderboard-table th,
 .leaderboard-table td {
   padding: 0.5rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
   text-align: left;
+}
+
+.leaderboard-table th {
+  color: var(--color-bg);
+  text-transform: uppercase;
+  background: var(--color-text);
+}
+
+.leaderboard-table td:first-child,
+.leaderboard-table td:last-child {
+  font-family: var(--font-mono);
+  font-weight: 800;
 }
 
 .leaderboard-table th:first-child,
@@ -477,21 +636,24 @@ button,
 }
 
 .leaderboard-table .is-viewer {
-  font-weight: 700;
-  background: var(--color-surface);
-  box-shadow: inset 0.25rem 0 0 var(--color-accent);
+  font-weight: 800;
+  background: var(--color-accent);
+  box-shadow: inset 0.5rem 0 0 var(--color-border);
 }
 
 .leaderboard-table .empty-row td {
   width: auto;
   color: var(--color-muted);
+  font-family: inherit;
+  font-weight: 500;
   text-align: left;
   white-space: normal;
 }
 
 .own-position {
   margin: 0;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-weight: 800;
 }
 
 @media (min-width: 40rem) {
@@ -523,6 +685,10 @@ button,
 @media (min-width: 48rem) {
   .stats-table {
     display: table;
+    background: var(--color-surface);
+    border: var(--border);
+    border-collapse: collapse;
+    box-shadow: var(--shadow-small);
   }
 
   .stats-table thead {
@@ -547,6 +713,7 @@ button,
     padding: 0;
     background: none;
     border: 0;
+    box-shadow: none;
   }
 
   /* The body sets overflow-wrap: anywhere for long usernames; in the table it
@@ -556,6 +723,9 @@ button,
     overflow-wrap: normal;
     word-break: normal;
     hyphens: manual;
+    color: var(--color-bg);
+    text-transform: uppercase;
+    background: var(--color-text);
   }
 
   .stats-table th[scope="row"] {
@@ -576,7 +746,7 @@ button,
   .stats-table td {
     display: table-cell;
     padding: 0.5rem;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
     text-align: right;
   }
 
@@ -590,7 +760,7 @@ button,
 
   .stats-table .stats-total th,
   .stats-table .stats-total td {
-    font-weight: 700;
-    border-bottom-color: var(--color-accent);
+    font-weight: 900;
+    background: var(--color-accent);
   }
 }
