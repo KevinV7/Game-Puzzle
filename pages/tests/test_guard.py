@@ -48,11 +48,12 @@ class AuthenticatedAccessTests(TestCase):
             with self.subTest(name):
                 self.assertEqual(self.client.get(reverse(name)).status_code, 200)
 
-    def test_leaderboard_placeholder_states_it_is_unavailable_and_shows_no_game_or_scores(self):
+    def test_leaderboard_is_a_real_page_not_a_placeholder(self):
         response = self.client.get(reverse("leaderboard"))
-        self.assertContains(response, "Aún no disponible")
-        for forbidden in ["<canvas", "timer", "temporizador", "dificultad", "<table"]:
-            self.assertNotContains(response, forbidden, msg_prefix=forbidden)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Aún no disponible")
+        for name in ["Fácil", "Normal", "Difícil"]:
+            self.assertContains(response, f"Clasificación {name}")
 
     def test_play_is_the_game_entry_not_a_placeholder(self):
         response = self.client.get(reverse("play"))

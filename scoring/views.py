@@ -3,6 +3,7 @@ from django.views.decorators.http import require_GET
 
 from game import services
 
+from . import queries
 from .queries import format_clock, player_stats
 
 DASH = "—"
@@ -33,3 +34,10 @@ def profile(request):
     rows = [_display_row(level) for level in stats.levels]
     rows.append(_display_row(stats.totals, is_total=True))
     return render(request, "scoring/profile.html", {"rows": rows, "has_finished": stats.totals.played > 0})
+
+
+# No login decorator: LoginRequiredMiddleware already denies anonymous access.
+@require_GET
+def leaderboard(request):
+    # Read-only: an expired attempt of any user never has a score, so nothing is finalized.
+    return render(request, "scoring/leaderboard.html", {"boards": queries.leaderboard(request.user)})
