@@ -17,6 +17,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from game import services
 from game.models import Game, Level
+from game.score import score_breakdown
 
 LEVEL_NOT_FOUND = "Nivel no encontrado"
 
@@ -64,6 +65,7 @@ def _payload(outcome, now):
         "next_level": None if outcome.next_level is None else outcome.next_level.slug,
         "completed_all": outcome.completed_all,
         "can_switch": outcome.can_switch,
+        "score": score_breakdown(outcome.game),
     }
 
 

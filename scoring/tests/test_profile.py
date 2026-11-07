@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from html.parser import HTMLParser
+from unittest import mock
 
 from django.db import connection
 from django.conf import settings
@@ -119,8 +120,13 @@ class ProfileAccessTests(TestCase):
         make_win(beto, seconds_remaining=500, moves_remaining=477, seconds=77)  # beto: 977
         make_lost(beto, "normal", seconds=58)
         self.client.force_login(ana)
-        response = self.client.get("/perfil/")
+        # The CSRF token is random text in every form. It is forced to contain both
+        # strings below so the test cannot fail by chance, and removed before looking.
+        with mock.patch("django.template.context_processors.get_token", return_value="x977betoy"):
+            response = self.client.get("/perfil/")
         content = response.content.decode()
+        self.assertIn("x977betoy", content)
+        content = content.replace("x977betoy", "")
         self.assertNotIn("beto", content)
         self.assertNotIn("beto@example.com", content)
         self.assertNotIn("977", content)

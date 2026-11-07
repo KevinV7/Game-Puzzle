@@ -82,25 +82,39 @@ export function lossMessage(reason) {
 }
 
 /**
+ * The score line of the win panel, e.g. "(120 s + 85 mov) × 2 = 410 puntos", or null
+ * when the payload carries no score. It is built only from the server's `score` object:
+ * the points are never computed here, so the panel cannot disagree with the profile
+ * or the leaderboard.
+ */
+export function formatScore(score) {
+  if (!score) return null;
+  const unit = score.points === 1 ? "punto" : "puntos";
+  return `(${score.seconds_remaining} s + ${score.moves_remaining} mov) × ${score.multiplier} = ${score.points} ${unit}`;
+}
+
+/**
  * What the win panel shows for a move or state response that reports a win.
  * `action` is "next" (a POST to start `nextLevel`) or "levels" (a link to the level
- * selection). The panel never shows a score.
+ * selection). `score` is the formatted breakdown line, or null when there is none.
  */
 export function describeWin(payload) {
   const { game } = payload;
+  const score = formatScore(payload.score);
   const stats = `Movimientos usados: ${game.moves_used} de ${game.move_limit}. Tiempo restante: ${formatClock(game.seconds_remaining)}.`;
   if (payload.completed_all) {
     return {
       title: "¡Completaste todos los niveles!",
       text: `Ya puedes jugar cualquier nivel. ${stats}`,
+      score,
       action: "levels",
       nextLevel: null,
     };
   }
   if (payload.next_level) {
-    return { title: "¡Nivel superado!", text: stats, action: "next", nextLevel: payload.next_level };
+    return { title: "¡Nivel superado!", text: stats, score, action: "next", nextLevel: payload.next_level };
   }
-  return { title: "¡Nivel superado!", text: stats, action: "levels", nextLevel: null };
+  return { title: "¡Nivel superado!", text: stats, score, action: "levels", nextLevel: null };
 }
 
 /** Put a game id into a URL the server rendered for the placeholder id 0. */
@@ -174,6 +188,7 @@ export function start(doc, win) {
   const noticeEl = doc.getElementById("notice");
   const winPanel = doc.getElementById("win-panel");
   const winTitle = doc.getElementById("win-title");
+  const winScore = doc.getElementById("win-score");
   const winText = doc.getElementById("win-text");
   const winActions = doc.getElementById("win-actions");
   const nextFormTemplate = doc.getElementById("next-level-form");
@@ -409,6 +424,8 @@ export function start(doc, win) {
     queued = null;
     const view = describeWin(data);
     winTitle.textContent = view.title;
+    winScore.textContent = view.score ?? "";
+    winScore.hidden = view.score === null;
     winText.textContent = view.text;
     winActions.replaceChildren(winAction(view));
     winPanel.hidden = false;

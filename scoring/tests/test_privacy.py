@@ -2,11 +2,13 @@
 
 import re
 from html.parser import HTMLParser
+from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from game.models import Game
 
@@ -112,16 +114,22 @@ class OtherPagesNeverShowOtherUsersTests(TestCase):
         make_win(beto, seconds_remaining=500, moves_remaining=477, ended_at=at(100))
         make_win(beto, "normal", seconds_remaining=400, moves_remaining=100, ended_at=at(200))
         make_lost(beto, "dificil", "timeout")
+        make_game(self.ana, started_at=timezone.now())  # without an active attempt the board URL only redirects
         self.client.force_login(self.ana)
 
     def test_no_page_but_the_leaderboard_shows_beto(self):
         urls = [reverse(name) for name in ["home", "instructions", "play", "profile"]]
         urls.append(reverse("game-board", args=["facil"]))
-        for url in urls:
-            with self.subTest(url):
-                content = self.client.get(url).content.decode()
-                self.assertNotIn("beto", content)
-                self.assertNotIn("977", content)
+        # The CSRF token is random text in every form. It is forced to contain both
+        # strings below so the test cannot fail by chance, and removed before looking.
+        with mock.patch("django.template.context_processors.get_token", return_value="x977betoy"):
+            for url in urls:
+                with self.subTest(url):
+                    content = self.client.get(url).content.decode()
+                    self.assertIn("x977betoy", content)
+                    content = content.replace("x977betoy", "")
+                    self.assertNotIn("beto", content)
+                    self.assertNotIn("977", content)
 
     def test_the_leaderboard_is_the_only_page_that_does(self):
         self.assertContains(self.client.get(reverse("leaderboard")), "beto")
