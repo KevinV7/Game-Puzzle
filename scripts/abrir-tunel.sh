@@ -10,8 +10,8 @@
 # Requirements: WSL or Linux, Docker with the Compose plugin, curl, and a .env file
 # (copy .env.example and fill it in). cloudflared is found in PATH or ~/.local/bin.
 #
-# Quick tunnels are temporary: the URL is new every time and Cloudflare deletes the
-# tunnel after about two days. Open one shortly before it is needed.
+# Quick tunnels are temporary: the URL is new every time and a tunnel can stop working
+# after a day or two (one expired after about 44 hours). Open one shortly before it is needed.
 #
 # The log and the pid of the tunnel live in ${XDG_STATE_HOME:-~/.local/state}.
 set -u
