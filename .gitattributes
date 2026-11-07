@@ -1,0 +1,14 @@
+# Keep LF line endings in every checkout, Windows included. The shell scripts run
+# inside Linux containers (docker-entrypoint.sh, scripts/smoke.sh) and fail with
+# "no such file or directory" when Git converts them to CRLF.
+* text=auto eol=lf
+
+# Binary files (none tracked today) are never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
