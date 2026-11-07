@@ -1,0 +1,17 @@
+.git
+.gitignore
+.atl
+openspec
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+*.py[cod]
+staticfiles
+db.sqlite3
+.idea
+.vscode
+docker-compose.yml
+scripts
