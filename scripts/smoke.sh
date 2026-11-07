@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test against the running stack through the proxy.
 # Usage: scripts/smoke.sh   (BASE_URL defaults to http://localhost:${PROXY_PORT:-8080})
-# The account/guard checks run only once the login page exists (slice 2 onwards).
 set -u
 
 BASE_URL="${BASE_URL:-http://localhost:${PROXY_PORT:-8080}}"
@@ -36,16 +35,13 @@ check "static CSS served by nginx" 200 "$(status "$BASE_URL/static/admin/css/bas
 ctype="$(curl -s -o /dev/null -w '%{content_type}' "$BASE_URL/static/admin/css/base.css")"
 check "static CSS content type" "text/css" "${ctype%%;*}"
 
-# 3. Account and guard checks, once the site pages exist.
-if [ "$(status "$BASE_URL/cuentas/entrar/")" = "404" ]; then
-  echo "SKIP  home, login POST and guard checks (login page not built yet)"
-else
-  check "GET /" 200 "$(status "$BASE_URL/")"
-  check "static site.css served by nginx" 200 "$(status "$BASE_URL/static/css/site.css")"
-  check "anonymous /jugar/ redirects" 302 "$(status "$BASE_URL/jugar/")"
+# 3. Site pages, access guard and a CSRF login POST through the proxy.
+check "GET /" 200 "$(status "$BASE_URL/")"
+check "static site.css served by nginx" 200 "$(status "$BASE_URL/static/css/site.css")"
+check "anonymous /jugar/ redirects" 302 "$(status "$BASE_URL/jugar/")"
 
-  smoke_pass="smoke-$(date +%s)-Aa1!"
-  docker compose exec -T web python manage.py shell -c "
+smoke_pass="smoke-$(date +%s)-Aa1!"
+docker compose exec -T web python manage.py shell -c "
 from django.contrib.auth import get_user_model
 U = get_user_model()
 u, _ = U.objects.get_or_create(username='smoke_user', defaults={'email': 'smoke_user@example.com'})
@@ -53,16 +49,16 @@ u.set_password('$smoke_pass')
 u.save()
 " >/dev/null
 
-  curl -s -c "$JAR" -o /dev/null "$BASE_URL/cuentas/entrar/"
-  token="$(awk '$6 == "csrftoken" {print $7}' "$JAR")"
-  code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
-    -H "Origin: $BASE_URL" -H "Referer: $BASE_URL/cuentas/entrar/" \
-    --data-urlencode "csrfmiddlewaretoken=$token" \
-    --data-urlencode "username=smoke_user" \
-    --data-urlencode "password=$smoke_pass" \
-    "$BASE_URL/cuentas/entrar/")"
-  check "login POST with CSRF through proxy" 302 "$code"
-fi
+curl -s -c "$JAR" -o /dev/null "$BASE_URL/cuentas/entrar/"
+token="$(awk '$6 == "csrftoken" {print $7}' "$JAR")"
+code="$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
+  -H "Origin: $BASE_URL" -H "Referer: $BASE_URL/cuentas/entrar/" \
+  --data-urlencode "csrfmiddlewaretoken=$token" \
+  --data-urlencode "username=smoke_user" \
+  --data-urlencode "password=$smoke_pass" \
+  "$BASE_URL/cuentas/entrar/")"
+check "login POST with CSRF through proxy" 302 "$code"
+check "authenticated /jugar/ is reachable" 200 "$(status -b "$JAR" "$BASE_URL/jugar/")"
 
 if [ "$FAILURES" -gt 0 ]; then
   echo "$FAILURES check(s) failed"
