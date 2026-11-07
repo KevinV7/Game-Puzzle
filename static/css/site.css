@@ -1,4 +1,17 @@
-/* Minimal mobile-first base. The full responsive stylesheet arrives with the pages slice. */
+/* Mobile-first stylesheet. Base rules target a 360 px viewport; wider layouts
+   are added with min-width media queries. Never hide overflow on the page to
+   mask a layout bug: wrapping and fluid sizes keep content inside the viewport. */
+:root {
+  --color-text: #1f2430;
+  --color-muted: #5a6275;
+  --color-bg: #ffffff;
+  --color-surface: #f2f4f8;
+  --color-border: #d3d8e2;
+  --color-accent: #2557d6;
+  --color-accent-text: #ffffff;
+  --radius: 0.5rem;
+}
+
 *,
 *::before,
 *::after {
@@ -6,20 +19,54 @@
 }
 
 img,
-svg {
+svg,
+video {
   max-width: 100%;
+  height: auto;
 }
 
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
   line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
   overflow-wrap: anywhere;
 }
 
-.site-header,
-.site-main {
+h1,
+h2 {
+  line-height: 1.2;
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+/* Layout */
+.site-header {
   padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1rem;
 }
 
 .site-nav {
@@ -38,10 +85,151 @@ body {
   list-style: none;
 }
 
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nav-auth {
+  margin-left: auto;
+}
+
 .nav-logout {
   margin: 0;
 }
 
+/* Controls */
+button,
+.button {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.6rem 1.25rem;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.nav-logout button {
+  padding: 0.25rem 0.75rem;
+}
+
 .form input {
   max-width: 100%;
+}
+
+.form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.form .helptext,
+.form ul {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.errorlist {
+  color: #b3261e;
+}
+
+/* Home */
+.hero {
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.lead {
+  font-size: 1.125rem;
+  color: var(--color-muted);
+}
+
+.actions {
+  margin: 1.5rem 0;
+}
+
+.link-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Instructions */
+.instructions-section {
+  margin-bottom: 1.5rem;
+}
+
+.example {
+  margin: 1rem 0;
+}
+
+.example-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 12rem;
+  padding: 0.25rem;
+  background: var(--color-border);
+  border-radius: var(--radius);
+}
+
+.example-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border-radius: 0.25rem;
+}
+
+.example-tile-empty {
+  background: transparent;
+}
+
+.example-caption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* Placeholders */
+.placeholder {
+  padding: 1rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+}
+
+@media (min-width: 40rem) {
+  .site-header {
+    padding: 1rem 2rem;
+  }
+
+  .site-main {
+    padding: 2rem;
+  }
+
+  h1 {
+    font-size: 2.25rem;
+  }
+
+  .form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+    width: auto;
+    min-width: 20rem;
+  }
 }

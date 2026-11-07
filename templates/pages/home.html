@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Puzle deslizante</h1>
+  <p class="lead">Desliza las fichas hasta dejarlas en orden.</p>
+  <p class="actions">
+    <a class="button" href="{% url 'play' %}">Jugar</a>
+  </p>
+  <ul class="link-list">
+    <li><a href="{% url 'instructions' %}">Cómo se juega</a></li>
+    <li><a href="{% url 'leaderboard' %}">Ver la clasificación</a></li>
+  </ul>
+</section>
+{% endblock %}
