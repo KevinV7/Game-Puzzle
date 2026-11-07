@@ -13,7 +13,7 @@ def placeholder(title, message="Aún no disponible."):
 home = login_not_required(TemplateView.as_view(template_name="pages/home.html"))
 
 # Protected by LoginRequiredMiddleware: no opt-out here on purpose.
-play = placeholder("Jugar")
+# (The Play page lives in the game app: see game/urls.py.)
 leaderboard = placeholder("Clasificación")
 
 instructions = login_not_required(TemplateView.as_view(template_name="pages/instructions.html"))

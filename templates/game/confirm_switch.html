@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Cambiar de nivel{% endblock %}
+
+{% block content %}
+<h1>Cambiar de nivel</h1>
+<p class="panel" role="alert">Si eliges otro nivel, la partida actual contará como perdida.</p>
+<p>Vas a empezar el nivel {{ level.name }}.</p>
+<form method="post" action="{% url 'game-start' level.slug %}" class="confirm-actions">
+  {% csrf_token %}
+  <input type="hidden" name="confirmar" value="1">
+  <button type="submit">Sí, cambiar a {{ level.name }}</button>
+  <a class="button" href="{{ cancel_url }}">Cancelar</a>
+</form>
+{% endblock %}

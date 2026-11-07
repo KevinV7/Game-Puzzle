@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Jugar{% endblock %}
+
+{% block content %}
+<h1>Jugar</h1>
+{% if catalog.active_game %}
+<p class="actions"><a class="button" href="{% url 'game-board' catalog.active_game.level.slug %}">Continuar</a></p>
+{% endif %}
+<section class="level-list" aria-label="Niveles">
+  {% for row in rows %}
+  {% with entry=row.entry level=row.entry.level %}
+  <article class="level-card{% if entry.passed %} level-passed{% endif %}{% if not entry.playable and not entry.passed %} level-locked{% endif %}">
+    <h2>{{ level.name }}</h2>
+    <ul class="level-facts">
+      <li>Tablero {{ level.size }}x{{ level.size }}</li>
+      <li>Tiempo: {{ row.time }}</li>
+      <li>{{ level.move_limit }} movimientos</li>
+      <li>Multiplicador x{{ level.multiplier }}</li>
+    </ul>
+    {% if entry.passed %}<p class="level-status">Superado</p>{% endif %}
+    {% if entry.active_game %}<p class="level-status">En curso</p>{% endif %}
+    {% if entry.playable %}
+    <form method="post" action="{% url 'game-start' level.slug %}">
+      {% csrf_token %}
+      <button type="submit">Empezar</button>
+    </form>
+    {% elif not entry.passed %}
+    <p class="level-status">Bloqueado</p>
+    <p class="level-hint">{{ row.unlock_hint }}</p>
+    {% endif %}
+  </article>
+  {% endwith %}
+  {% endfor %}
+</section>
+{% endblock %}
