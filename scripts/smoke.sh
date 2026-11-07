@@ -44,6 +44,12 @@ case "${jstype%%;*}" in
   text/javascript | application/javascript) jstype="javascript" ;;
 esac
 check "static game.js content type" "javascript" "$jstype"
+check "static sound.js served by nginx" 200 "$(status "$BASE_URL/static/js/sound.js")"
+jstype="$(curl -s -o /dev/null -w '%{content_type}' "$BASE_URL/static/js/sound.js")"
+case "${jstype%%;*}" in
+  text/javascript | application/javascript) jstype="javascript" ;;
+esac
+check "static sound.js content type" "javascript" "$jstype"
 check "anonymous /jugar/ redirects" 302 "$(status "$BASE_URL/jugar/")"
 
 smoke_pass="smoke-$(date +%s)-Aa1!"
@@ -86,6 +92,7 @@ game_id=""
 if [[ "$page" =~ \"id\":\ *([0-9]+) ]]; then game_id="${BASH_REMATCH[1]}"; fi
 check "board page embeds a game id" "yes" "$([ -n "$game_id" ] && echo yes || echo no)"
 check "board page loads game.js as a module" "yes" "$([[ "$page" == *'type="module" src="/static/js/game.js"'* ]] && echo yes || echo no)"
+check "board page loads sound.js as a module" "yes" "$([[ "$page" == *'type="module" src="/static/js/sound.js"'* ]] && echo yes || echo no)"
 
 state="$(curl -s -b "$JAR" -o /dev/null -w '%{http_code} %{content_type}' "$BASE_URL/jugar/api/partidas/$game_id/")"
 check "state GET returns JSON" "200 application/json" "${state%%;*}"

@@ -122,22 +122,31 @@ export function readCookie(cookies, name) {
   return "";
 }
 
-// Hook for the sounds added in a later change. Listeners receive one cue name:
-// "active", "slide", "correct", "incorrect", "invalid", "win" or "lose".
+// Hook for the sounds (static/js/sound.js). Listeners receive one cue name:
+// "active" (an attempt is on screen and running), "slide", "correct", "incorrect",
+// "invalid", "win" or "lose".
 const cueListeners = [];
+let attemptIsActive = false; // what a listener that registers late has missed
 
+function notify(listener, name) {
+  try {
+    listener(name);
+  } catch {
+    // A failing listener must never break the game.
+  }
+}
+
+// This module draws the first board as soon as it loads, which can be before a listener
+// registers, so a late listener is told about an attempt that is already running.
 export function onCue(listener) {
   cueListeners.push(listener);
+  if (attemptIsActive) notify(listener, "active");
 }
 
 export function emitCue(name) {
-  for (const listener of cueListeners) {
-    try {
-      listener(name);
-    } catch {
-      // A failing listener must never break the game.
-    }
-  }
+  if (name === "active") attemptIsActive = true;
+  else if (name === "win" || name === "lose") attemptIsActive = false;
+  for (const listener of cueListeners) notify(listener, name);
 }
 
 // Page wiring

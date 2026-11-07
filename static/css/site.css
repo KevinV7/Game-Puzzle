@@ -275,6 +275,26 @@ button,
   font-weight: 600;
 }
 
+/* Mute toggle: a quiet secondary button, at least 44 px tall to be a touch target. */
+.mute-toggle {
+  min-height: 2.75rem;
+  margin: 0 0 0.5rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.mute-toggle[aria-pressed="true"] {
+  color: var(--color-accent-text);
+  background: var(--color-muted);
+  border-color: var(--color-muted);
+}
+
+.mute-toggle:focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 2px;
+}
+
 .notice,
 .win-panel {
   margin: 0 0 1rem;
