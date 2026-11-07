@@ -342,10 +342,38 @@ class ProfileCssTests(SimpleTestCase):
         hidden_rule = self.css.partition(".visually-hidden,")[2].partition("}")[0]
         self.assertIn("contain: paint", hidden_rule)
 
-    def test_the_stats_table_stacks_below_40rem_and_returns_from_40rem(self):
-        base, _, wide = self.css.partition("@media (min-width: 40rem)")
+    def test_the_stats_table_stacks_below_48rem_and_returns_from_48rem(self):
+        # Kept-whole header words need ~640px, which does not fit 40rem-48rem.
+        base, _, wide = self.css.partition("@media (min-width: 48rem)")
         self.assertIn("grid-template-columns: minmax(0, 1fr) auto", base)
         self.assertIn("display: table-row", wide)
+
+    def _wide_rule(self, selector):
+        wide = self.css.partition("@media (min-width: 48rem)")[2]
+        return wide.partition(selector + " {")[2].partition("}")[0]
+
+    def test_wide_header_words_are_never_split_inside_a_word(self):
+        # The body sets overflow-wrap: anywhere; without this the desktop header
+        # cells shrank to one letter ("Jugad / as").
+        rule = self._wide_rule(".stats-table thead th")
+        self.assertIn("overflow-wrap: normal", rule)
+        self.assertIn("word-break: normal", rule)
+        self.assertIn("hyphens: manual", rule)
+
+    def test_wide_level_names_are_never_split_inside_a_word(self):
+        # With the headers kept whole, "Normal"/"Difícil"/"Totales" were squeezed
+        # and broken in the row-header cells instead.
+        rule = self._wide_rule('.stats-table th[scope="row"]')
+        self.assertIn("overflow-wrap: normal", rule)
+        self.assertIn("word-break: normal", rule)
+
+    def test_wide_caption_spans_the_whole_table(self):
+        # A block caption inside a display: table box fell into an anonymous
+        # first-column cell; a real table-caption spans the table width.
+        rule = self._wide_rule(".stats-table caption")
+        self.assertIn("display: table-caption", rule)
+        self.assertIn("caption-side: top", rule)
+        self.assertIn("overflow-wrap: normal", rule)
 
     def test_the_stylesheet_still_never_hides_horizontal_overflow(self):
         self.assertNotIn("overflow-x", self.css)
