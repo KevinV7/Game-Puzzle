@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 PASSWORD = "Sl1de-Tiles-42"
-PROTECTED = ["play", "leaderboard"]
+PROTECTED = ["play", "leaderboard", "profile"]
 PUBLIC = ["home", "instructions", "signup", "login", "healthz"]
 
 

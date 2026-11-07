@@ -16,6 +16,7 @@
         <li><a href="{% url 'instructions' %}">Instrucciones</a></li>
         <li><a href="{% url 'play' %}">Jugar</a></li>
         <li><a href="{% url 'leaderboard' %}">Clasificación</a></li>
+        {% if user.is_authenticated %}<li><a href="{% url 'profile' %}">Perfil</a></li>{% endif %}
       </ul>
       <ul class="nav-auth">
         {% if user.is_authenticated %}

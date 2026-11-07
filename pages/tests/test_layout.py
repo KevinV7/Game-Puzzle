@@ -30,6 +30,13 @@ class BaseLayoutTests(TestCase):
             self.assertContains(response, f'href="{reverse(name)}"')
         self.assertNotContains(response, LOGOUT_FORM_OPEN)
 
+    def test_anonymous_navigation_has_no_profile_link(self):
+        for name in ["login", "home", "instructions"]:
+            with self.subTest(name):
+                response = self.client.get(reverse(name))
+                self.assertNotContains(response, f'href="{reverse("profile")}"')
+                self.assertNotContains(response, "Perfil")
+
     def test_authenticated_navigation_shows_post_logout_form_and_own_name(self):
         user = get_user_model().objects.create_user("ana", "ana@example.com", PASSWORD)
         self.client.force_login(user)
@@ -37,5 +44,6 @@ class BaseLayoutTests(TestCase):
         self.assertContains(response, LOGOUT_FORM_OPEN)
         self.assertContains(response, "csrfmiddlewaretoken")
         self.assertContains(response, "ana")
+        self.assertContains(response, f'href="{reverse("profile")}">Perfil</a>')
         self.assertNotContains(response, f'href="{reverse("login")}"')
         self.assertNotContains(response, f'href="{reverse("signup")}"')

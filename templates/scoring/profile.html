@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<h1>Perfil</h1>
+{% if not has_finished %}
+<p class="notice">Aún no has terminado ninguna partida. ¡Juega para ver tus estadísticas! <a href="{% url 'play' %}">Ir a jugar</a></p>
+{% endif %}
+<table class="stats-table">
+  <caption>Tus estadísticas por nivel</caption>
+  <thead>
+    <tr>
+      <th scope="col">Nivel</th>
+      <th scope="col">Jugadas</th>
+      <th scope="col">Ganadas</th>
+      <th scope="col">Perdidas</th>
+      <th scope="col">% de victorias</th>
+      <th scope="col">Mejor puntaje</th>
+      <th scope="col">Tiempo medio</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr{% if row.is_total %} class="stats-total"{% endif %}>
+      <th scope="row">{{ row.name }}</th>
+      <td data-label="Jugadas">{{ row.played }}</td>
+      <td data-label="Ganadas">{{ row.won }}</td>
+      <td data-label="Perdidas">{{ row.lost }}</td>
+      <td data-label="% de victorias">{{ row.win_percent }}</td>
+      <td data-label="Mejor puntaje">{{ row.best }}{% if row.is_total and row.has_best %}<span class="visually-hidden">suma de los mejores puntajes de cada nivel</span>{% endif %}</td>
+      <td data-label="Tiempo medio">{{ row.average }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

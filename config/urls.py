@@ -8,5 +8,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("cuentas/", include("accounts.urls")),
     path("jugar/", include("game.urls")),
+    path("", include("scoring.urls")),
     path("", include("pages.urls")),
 ]

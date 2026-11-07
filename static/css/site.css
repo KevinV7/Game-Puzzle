@@ -367,6 +367,78 @@ button,
   outline-offset: 2px;
 }
 
+/* Stats table (Perfil). Below 40rem each row stacks into a card of label/value
+   pairs read from data-label, and the header row stays available to assistive
+   technology but is clipped, never hidden with overflow. `contain: paint` keeps
+   the clipped text from adding scrollable width (it clips like overflow does,
+   without using the overflow property). From 40rem up it is a normal table. */
+.visually-hidden,
+.stats-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  contain: paint;
+}
+
+.stats-table {
+  display: block;
+  width: 100%;
+  margin: 0 0 1rem;
+}
+
+.stats-table caption {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.stats-table tbody {
+  display: block;
+}
+
+.stats-table tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stats-table .stats-total {
+  border-color: var(--color-accent);
+}
+
+.stats-table th[scope="row"] {
+  grid-column: 1 / -1;
+  font-size: 1.125rem;
+  text-align: left;
+}
+
+.stats-table td {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: right;
+}
+
+.stats-table td::before {
+  content: attr(data-label);
+  font-weight: 600;
+  color: var(--color-muted);
+  text-align: left;
+}
+
 @media (min-width: 40rem) {
   .level-list {
     grid-template-columns: repeat(3, 1fr);
@@ -387,5 +459,55 @@ button,
   .form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
     width: auto;
     min-width: 20rem;
+  }
+
+  .stats-table {
+    display: table;
+  }
+
+  .stats-table thead {
+    position: static;
+    display: table-header-group;
+    width: auto;
+    height: auto;
+    margin: 0;
+    white-space: normal;
+    clip: auto;
+    clip-path: none;
+    contain: none;
+  }
+
+  .stats-table tbody {
+    display: table-row-group;
+  }
+
+  .stats-table tr {
+    display: table-row;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .stats-table th,
+  .stats-table td {
+    display: table-cell;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+  }
+
+  .stats-table th:first-child {
+    text-align: left;
+  }
+
+  .stats-table td::before {
+    content: none;
+  }
+
+  .stats-table .stats-total th,
+  .stats-table .stats-total td {
+    font-weight: 700;
+    border-bottom-color: var(--color-accent);
   }
 }
