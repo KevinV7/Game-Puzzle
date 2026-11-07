@@ -3,7 +3,9 @@
 import json
 import re
 from datetime import timedelta
+from pathlib import Path
 
+from django.contrib.staticfiles import finders
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -29,6 +31,13 @@ def card(response, name):
     match = re.search(rf'<article class="level-card[^"]*">(?:(?!</article>).)*?<h2>{name}</h2>.*?</article>', content, re.S)
     assert match, f"no card for {name}"
     return match.group(0)
+
+
+def embedded_state(response):
+    """The ``json_script`` state the board page hands to the script."""
+    match = re.search(r'<script id="game-state" type="application/json">(.*?)</script>', response.content.decode(), re.S)
+    assert match, "the page embeds no game state"
+    return json.loads(match.group(1))
 
 
 class ViewTestCase(TestCase):
@@ -181,9 +190,7 @@ class SwitchConfirmationTests(TestCase):
 
 class BoardShellTests(ViewTestCase):
     def state_of(self, response):
-        match = re.search(r'<script id="game-state" type="application/json">(.*?)</script>', response.content.decode(), re.S)
-        self.assertIsNotNone(match)
-        return json.loads(match.group(1))
+        return embedded_state(response)
 
     def test_without_an_attempt_it_redirects_to_the_level_selection(self):
         response = self.client.get(reverse("game-board", args=["facil"]))
@@ -262,3 +269,65 @@ class BoardShellTests(ViewTestCase):
         self.assertEqual(state["game"]["moves_used"], 0)
         self.assertEqual(Game.objects.filter(user=self.ana, loss_reason=Game.TIMEOUT).count(), 1)
         self.assertEqual(Game.objects.filter(user=self.ana, status=Game.ACTIVE).count(), 1)
+
+
+class BoardScriptHookTests(ViewTestCase):
+    """What the board page must expose for ``static/js/game.js``.
+
+    The script's own behavior has no automated runner; it is covered by the manual
+    checklist in the PR. These tests pin the contract between the page and the script.
+    """
+
+    def get_board(self):
+        live_game(self.ana)
+        return self.client.get(reverse("game-board", args=["facil"]))
+
+    def test_the_page_loads_the_game_script_as_a_module(self):
+        content = self.get_board().content.decode()
+        self.assertRegex(content, r'<script[^>]*type="module"[^>]*src="/static/js/game\.js"')
+
+    def test_the_script_file_is_served_by_the_static_files_finders(self):
+        self.assertIsNotNone(finders.find("js/game.js"))
+
+    def test_the_board_container_exposes_the_urls_the_script_needs(self):
+        response = self.get_board()
+        for attribute, url in [
+            ("data-state-url", reverse("game-state", args=[0])),
+            ("data-move-url", reverse("game-move", args=[0])),
+            ("data-start-url", reverse("game-start", args=["__slug__"])),
+            ("data-levels-url", reverse("play")),
+            ("data-login-url", reverse("login")),
+        ]:
+            with self.subTest(attribute):
+                self.assertRegex(response.content.decode(), rf'<ol id="board"[^>]*{attribute}="{url}"')
+
+    def test_the_state_is_embedded_for_the_script(self):
+        state = embedded_state(self.get_board())
+        for key in ["id", "board", "size", "moves_used", "move_limit", "seconds_remaining", "status"]:
+            self.assertIn(key, state["game"])
+        for key in ["ended", "next_level", "completed_all", "can_switch"]:
+            self.assertIn(key, state)
+
+    def test_the_counters_and_notice_are_the_elements_the_script_updates(self):
+        content = self.get_board().content.decode()
+        for element_id in ["moves", "time", "notice", "board", "win-panel", "win-title", "win-text", "win-actions"]:
+            with self.subTest(element_id):
+                self.assertRegex(content, rf'id="{element_id}"')
+
+    def test_the_next_level_form_is_a_post_template_carrying_a_csrf_token(self):
+        content = self.get_board().content.decode()
+        match = re.search(r'<template id="next-level-form">(.*?)</template>', content, re.S)
+        self.assertIsNotNone(match)
+        self.assertIn('method="post"', match.group(1))
+        self.assertIn("csrfmiddlewaretoken", match.group(1))
+        self.assertIn("Siguiente nivel", match.group(1))
+
+    def test_tiles_are_drawn_with_css_only(self):
+        content = self.get_board().content.decode()
+        self.assertNotIn("<img", content.lower())
+        self.assertNotRegex(content, r"\.(png|jpe?g|gif|svg|webp)")
+
+    def test_the_stylesheet_stops_touch_gestures_on_the_board(self):
+        css = Path(finders.find("css/site.css")).read_text(encoding="utf-8")
+        board_rule = re.search(r"\n\.board \{(.*?)\}", css, re.S).group(1)
+        self.assertIn("touch-action: none", board_rule)
